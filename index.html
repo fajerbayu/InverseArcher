@@ -543,7 +543,10 @@ font-size:17px !important;line-height:1.5 !important}
   pointer-events:none;
   z-index:8;
 }
-</style></head>
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+</head>
 <body><main id="app">
 <section id="login" class="screen active"><div class="targetLogo" aria-label="Logo target panahan">
   <div class="targetRing r1"><div class="targetRing r2"><div class="targetRing r3"><div class="bullseye"></div></div></div></div>
@@ -558,6 +561,7 @@ font-size:17px !important;line-height:1.5 !important}
 <button id="start">START GAME</button>
 <button id="instructionBtn" class="secondary">PETUNJUK PERMAINAN</button>
 <button id="practiceBtn" class="secondary">SESI LATIHAN MEMANAH</button>
+<a href="guru.html" style="text-align:center;font-size:13px;color:#1e40af;background:#e0f2fe;font-weight:700;text-decoration:none;padding:12px;border-radius:16px;display:block;margin-top:2px;">🔒 PORTAL GURU (REKAP NILAI)</a>
 </div>
 </div></section>
 <section id="game" class="screen"><div class="topbar"><span id="userTop">Pemain</span><span id="progress">Ronde 1/10</span><span id="timerTop">40:00</span><span id="scoreTop">Skor 0</span></div><div id="arena"><div class="cloud c1"></div><div class="cloud c2"></div><div class="cloud c3"></div>
@@ -626,6 +630,8 @@ font-size:17px !important;line-height:1.5 !important}
  <div class="barCard"><div class="barTrack"><div id="correctBar" class="barFill correctBar"></div><span id="correctPct" class="barPct">0%</span></div><div class="barLabel">Benar</div><div id="correctN" class="barNumber">0</div></div>
  <div class="barCard"><div class="barTrack"><div id="wrongBar" class="barFill wrongBar"></div><span id="wrongPct" class="barPct">0%</span></div><div class="barLabel">Salah</div><div id="wrongN" class="barNumber">0</div></div>
 </div>
+<div id="saveStatus" style="margin:10px 0 6px;font-size:13px;font-weight:700;min-height:20px;text-align:center;"></div>
+<button id="retrySaveBtn" class="secondary" style="display:none;margin-bottom:8px;">🔄 Coba Kirim Ulang Nilai</button>
 <button id="reviewBtn">PENJELASAN SOAL</button><button class="secondary" id="again">MAIN LAGI</button></div></section>
 <section id="review" class="screen"><h2>📖 Pembahasan</h2><div id="reviewList"></div><button id="backResult">← Kembali ke Skor</button></section>
 </main>
@@ -803,7 +809,75 @@ function finish(){cancelAnimationFrame(raf);clearInterval(timerInt);show("result
  if(score>=90){medal.classList.add("gold");label.textContent="MEDALI EMAS"}
  else if(score>=75){medal.classList.add("silver");label.textContent="MEDALI PERAK"}
  else{medal.classList.add("bronze");label.textContent="MEDALI PERUNGGU"}
- requestAnimationFrame(()=>setTimeout(()=>{$("#correctBar").style.height=cp+"%";$("#wrongBar").style.height=wp+"%"},80))
+ requestAnimationFrame(()=>setTimeout(()=>{$("#correctBar").style.height=cp+"%";$("#wrongBar").style.height=wp+"%"},80));
+ saveScoreToSupabase(score, c, w, label.textContent);
+}
+
+let pendingScorePayload = null;
+async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
+  const statusEl = document.getElementById("saveStatus");
+  const retryBtn = document.getElementById("retrySaveBtn");
+  if (!statusEl) return;
+
+  statusEl.innerHTML = '<span style="color:#2563eb">⏳ Menyimpan nilai ke database Guru...</span>';
+  if (retryBtn) retryBtn.style.display = "none";
+
+  if (typeof initSupabase === "function") initSupabase();
+
+  if (!supabaseClient) {
+    statusEl.innerHTML = '<span style="color:#64748b">ℹ️ Mode Offline (Atur SUPABASE_URL & ANON_KEY di config.js untuk simpan ke cloud)</span>';
+    return;
+  }
+
+  const durationSeconds = Math.max(0, 2400 - timeLeft);
+  const detail = answers.map((ans, idx) => ({
+    question_num: idx + 1,
+    chosen: ans,
+    correct: Q[idx][2],
+    is_correct: ans === Q[idx][2]
+  }));
+
+  pendingScorePayload = {
+    student_name: player || "Tanpa Nama",
+    student_class: kelas || "-",
+    score: finalScore,
+    correct_count: correctN,
+    wrong_count: wrongN,
+    medal: medalName || "-",
+    time_spent_seconds: durationSeconds,
+    answers_detail: detail
+  };
+
+  try {
+    const { error } = await supabaseClient
+      .from("student_scores")
+      .insert([pendingScorePayload]);
+
+    if (error) throw error;
+    statusEl.innerHTML = '<span style="color:#16a34a">✓ Nilai berhasil dikirim & tersimpan di sistem Guru</span>';
+    try { localStorage.removeItem("inverse_archer_pending_score"); } catch(e){}
+  } catch (err) {
+    console.error("Gagal simpan nilai ke Supabase:", err);
+    try {
+      localStorage.setItem("inverse_archer_pending_score", JSON.stringify(pendingScorePayload));
+    } catch(e){}
+    statusEl.innerHTML = '<span style="color:#dc2626">⚠️ Gagal mengirim nilai ke server. Nilai tersimpan di perangkat.</span>';
+    if (retryBtn) retryBtn.style.display = "block";
+  }
+}
+
+const retryBtnEl = document.getElementById("retrySaveBtn");
+if (retryBtnEl) {
+  retryBtnEl.onclick = () => {
+    if (pendingScorePayload) {
+      saveScoreToSupabase(
+        pendingScorePayload.score,
+        pendingScorePayload.correct_count,
+        pendingScorePayload.wrong_count,
+        pendingScorePayload.medal
+      );
+    }
+  };
 }
 
 $("#practiceBtn").onclick=()=>startPracticeTraining();

@@ -1,0 +1,843 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Portal Guru - Inverse Archer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --warning: #f59e0b;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* Header & Nav */
+header {
+  background: #ffffff;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.header-wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+.logo-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--ink);
+}
+.logo-icon {
+  width: 38px;
+  height: 38px;
+  background: linear-gradient(135deg, #ffd36a, #ef6b75);
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  box-shadow: 0 4px 10px rgba(239, 107, 117, 0.25);
+}
+.logo-title h1 { font-size: 18px; font-weight: 800; }
+.logo-title span { font-size: 13px; color: var(--muted); font-weight: 500; }
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.user-tag {
+  font-size: 13px;
+  font-weight: 600;
+  background: #f1f5f9;
+  padding: 6px 12px;
+  border-radius: 20px;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.user-tag::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: var(--success);
+  border-radius: 50%;
+}
+
+button, .btn {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-decoration: none;
+}
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { background: var(--primary-hover); transform: translateY(-1px); }
+.btn-secondary { background: #f1f5f9; color: var(--ink); border: 1px solid var(--border); }
+.btn-secondary:hover { background: #e2e8f0; }
+.btn-danger { background: #fee2e2; color: var(--danger); }
+.btn-danger:hover { background: #fecaca; }
+.btn-success { background: #dcfce7; color: var(--success); }
+.btn-success:hover { background: #bbf7d0; }
+
+/* Container */
+.container {
+  max-width: 1200px;
+  margin: 24px auto;
+  padding: 0 20px;
+}
+
+/* Login Card */
+#loginSection {
+  max-width: 420px;
+  margin: 60px auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);
+}
+#loginSection h2 { font-size: 22px; font-weight: 800; margin-bottom: 6px; text-align: center; }
+#loginSection p { color: var(--muted); font-size: 14px; margin-bottom: 24px; text-align: center; }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.form-group input {
+  width: 100%;
+  padding: 11px 14px;
+  font-family: inherit;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f8fafc;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.form-group input:focus { border-color: var(--primary); background: #ffffff; }
+
+/* Stat Cards */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+.stat-card .label { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-card .val { font-size: 30px; font-weight: 800; margin-top: 4px; color: var(--ink); }
+.stat-card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+/* Control Bar */
+.control-bar {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+.search-filter-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex: 1;
+  min-width: 280px;
+}
+.search-input {
+  flex: 1;
+  min-width: 180px;
+  padding: 9px 14px;
+  font-family: inherit;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  outline: none;
+  background: #f8fafc;
+}
+.search-input:focus { border-color: var(--primary); background: #fff; }
+.select-filter {
+  padding: 9px 14px;
+  font-family: inherit;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f8fafc;
+  outline: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* Table */
+.table-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+}
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+}
+th {
+  background: #f8fafc;
+  padding: 14px 16px;
+  font-weight: 700;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #f8fafc; }
+
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.badge-gold { background: #fef3c7; color: #b45309; }
+.badge-silver { background: #f1f5f9; color: #475569; }
+.badge-bronze { background: #ffedd5; color: #c2410c; }
+.badge-score {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--primary);
+  background: #eff6ff;
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 50px 20px;
+  color: var(--muted);
+}
+.empty-state h3 { font-size: 18px; color: var(--ink); margin-bottom: 6px; }
+
+/* Alert */
+.alert {
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  display: none;
+  font-weight: 500;
+}
+.alert-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+.alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+.alert-info { background: #e0f2fe; color: #075985; border: 1px solid #bae6fd; }
+
+/* Modal Detail */
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  z-index: 50;
+  padding: 20px;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+.modal.show { display: flex; }
+.modal-content {
+  background: var(--card);
+  max-width: 650px;
+  width: 100%;
+  max-height: 85vh;
+  border-radius: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+}
+.modal-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.modal-header h3 { font-size: 18px; font-weight: 800; }
+.modal-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  font-size: 14px;
+}
+.modal-footer {
+  padding: 14px 24px;
+  border-top: 1px solid var(--border);
+  text-align: right;
+  background: #f8fafc;
+}
+
+.question-check-item {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.question-check-item.is-correct { border-left: 4px solid var(--success); }
+.question-check-item.is-wrong { border-left: 4px solid var(--danger); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-wrap">
+    <a href="index.html" class="logo-title">
+      <div class="logo-icon">🎯</div>
+      <div>
+        <h1>Inverse Archer</h1>
+        <span>Dasbor Rekapitulasi Nilai Siswa</span>
+      </div>
+    </a>
+    <div class="nav-actions">
+      <a href="index.html" class="btn btn-secondary">🎮 Buka Game</a>
+      <div id="userHeaderTag" class="user-tag" style="display:none">
+        <span id="teacherEmailDisplay">Guru</span>
+      </div>
+      <button id="logoutBtn" class="btn btn-danger" style="display:none">Keluar</button>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <!-- Status Konfigurasi Supabase -->
+  <div id="configWarning" class="alert alert-info" style="display:none">
+    ⚠️ <b>Konfigurasi Supabase Belum Lengkap:</b> Buka file <code>config.js</code> dan masukkan <code>SUPABASE_URL</code> serta <code>SUPABASE_ANON_KEY</code> project Supabase Anda.
+  </div>
+
+  <!-- LAYAR LOGIN GURU -->
+  <section id="loginSection">
+    <div style="text-align:center; font-size:42px; margin-bottom:10px">🔐</div>
+    <h2>Login Guru</h2>
+    <p>Masuk dengan akun guru Supabase Anda untuk mengakses dan mengunduh rekapan nilai siswa.</p>
+    
+    <div id="loginAlert" class="alert alert-danger"></div>
+
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="teacherEmail">Email Guru</label>
+        <input type="email" id="teacherEmail" placeholder="contoh: guru@sekolah.sch.id" required>
+      </div>
+      <div class="form-group">
+        <label for="teacherPassword">Kata Sandi</label>
+        <input type="password" id="teacherPassword" placeholder="Masukkan kata sandi akun guru" required>
+      </div>
+      <button type="submit" id="loginSubmitBtn" class="btn btn-primary" style="width:100%; padding:12px">Masuk ke Dasbor</button>
+    </form>
+  </section>
+
+  <!-- LAYAR DASHBOARD GURU -->
+  <section id="dashboardSection" style="display:none">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">Total Siswa</div>
+        <div class="val" id="statTotal">0</div>
+        <div class="sub">Telah menyelesaikan kuis</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Rata-rata Nilai</div>
+        <div class="val" id="statAvg" style="color:var(--primary)">0</div>
+        <div class="sub">Skala 0 - 100</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Nilai Tertinggi</div>
+        <div class="val" id="statMax" style="color:var(--success)">0</div>
+        <div class="sub" id="statMaxName">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Nilai Terendah</div>
+        <div class="val" id="statMin" style="color:var(--warning)">0</div>
+        <div class="sub" id="statMinName">-</div>
+      </div>
+    </div>
+
+    <!-- Toolbar Pencarian & Ekspor -->
+    <div class="control-bar">
+      <div class="search-filter-wrap">
+        <input type="text" id="searchInput" class="search-input" placeholder="🔍 Cari nama siswa...">
+        <select id="classFilter" class="select-filter">
+          <option value="ALL">Semua Kelas</option>
+        </select>
+        <select id="sortFilter" class="select-filter">
+          <option value="newest">Waktu: Terbaru</option>
+          <option value="highest">Nilai: Tertinggi</option>
+          <option value="lowest">Nilai: Terendah</option>
+          <option value="name">Nama: A - Z</option>
+        </select>
+      </div>
+      <div style="display:flex; gap:8px">
+        <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh</button>
+        <button id="exportCsvBtn" class="btn btn-success">📥 Download Excel (CSV)</button>
+      </div>
+    </div>
+
+    <!-- Tabel Data Nilai -->
+    <div class="table-card">
+      <div class="table-responsive">
+        <table id="scoresTable">
+          <thead>
+            <tr>
+              <th style="width:50px">No</th>
+              <th>Waktu</th>
+              <th>Nama Siswa</th>
+              <th>Kelas</th>
+              <th>Skor</th>
+              <th>Benar / Salah</th>
+              <th>Medali</th>
+              <th>Durasi</th>
+              <th>Detail</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="scoresTbody">
+            <!-- Diisi dengan JavaScript -->
+          </tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="empty-state" style="display:none">
+        <h3>Belum Ada Data Nilai</h3>
+        <p>Belum ada siswa yang menyelesaikan permainan atau data tidak ditemukan dengan filter yang dipilih.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Modal Detail Jawaban Siswa -->
+<div id="detailModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="modalStudentName">Detail Jawaban Siswa</h3>
+      <button id="closeModalBtn" class="btn btn-secondary" style="padding:4px 8px">✕</button>
+    </div>
+    <div class="modal-body" id="modalStudentBody">
+      <!-- Diisi dinamis -->
+    </div>
+    <div class="modal-footer">
+      <button id="closeModalFooterBtn" class="btn btn-secondary">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<!-- CDN Supabase & Script Konfigurasi -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+
+<script>
+let allScores = [];
+let filteredScores = [];
+let activeSession = null;
+
+// Periksa kelengkapan konfigurasi
+window.addEventListener("DOMContentLoaded", async () => {
+  initSupabase();
+
+  if (!supabaseClient) {
+    document.getElementById("configWarning").style.display = "block";
+    return;
+  }
+
+  // Cek apakah guru sudah punya sesi aktif
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session) {
+    onLoginSuccess(session);
+  } else {
+    showLogin();
+  }
+});
+
+// Event Handler Login
+document.getElementById("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const alertEl = document.getElementById("loginAlert");
+  alertEl.style.display = "none";
+
+  if (!supabaseClient) {
+    alertEl.textContent = "Supabase belum diinisialisasi. Silakan lengkapi file config.js.";
+    alertEl.style.display = "block";
+    return;
+  }
+
+  const email = document.getElementById("teacherEmail").value.trim();
+  const password = document.getElementById("teacherPassword").value;
+  const submitBtn = document.getElementById("loginSubmitBtn");
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Memverifikasi...";
+
+  try {
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    onLoginSuccess(data.session);
+  } catch (err) {
+    alertEl.textContent = "Login gagal: " + (err.message || "Periksa email dan kata sandi Anda.");
+    alertEl.style.display = "block";
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Masuk ke Dasbor";
+  }
+});
+
+// Event Handler Logout
+document.getElementById("logoutBtn").addEventListener("click", async () => {
+  if (confirm("Apakah Anda yakin ingin keluar dari Dasbor Guru?")) {
+    await supabaseClient.auth.signOut();
+    location.reload();
+  }
+});
+
+function onLoginSuccess(session) {
+  activeSession = session;
+  document.getElementById("loginSection").style.display = "none";
+  document.getElementById("dashboardSection").style.display = "block";
+  document.getElementById("userHeaderTag").style.display = "flex";
+  document.getElementById("logoutBtn").style.display = "inline-flex";
+  document.getElementById("teacherEmailDisplay").textContent = session.user.email;
+
+  loadScores();
+  setupRealtime();
+}
+
+function showLogin() {
+  document.getElementById("loginSection").style.display = "block";
+  document.getElementById("dashboardSection").style.display = "none";
+}
+
+// Mengambil Data Nilai dari Supabase
+async function loadScores() {
+  const refreshBtn = document.getElementById("refreshBtn");
+  refreshBtn.disabled = true;
+  refreshBtn.textContent = "Memuat...";
+
+  try {
+    const { data, error } = await supabaseClient
+      .from("student_scores")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    allScores = data || [];
+    updateClassDropdown();
+    applyFilterAndRender();
+  } catch (err) {
+    alert("Gagal memuat data nilai: " + err.message);
+  } finally {
+    refreshBtn.disabled = false;
+    refreshBtn.textContent = "🔄 Refresh";
+  }
+}
+
+// Realtime Listener: Nilai baru otomatis masuk!
+function setupRealtime() {
+  if (!supabaseClient) return;
+
+  supabaseClient
+    .channel("public:student_scores")
+    .on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "student_scores" },
+      (payload) => {
+        allScores.unshift(payload.new);
+        updateClassDropdown();
+        applyFilterAndRender();
+      }
+    )
+    .subscribe();
+}
+
+// Filter dan Render
+function updateClassDropdown() {
+  const select = document.getElementById("classFilter");
+  const currentVal = select.value;
+  const classes = [...new Set(allScores.map(s => s.student_class).filter(Boolean))].sort();
+
+  select.innerHTML = '<option value="ALL">Semua Kelas</option>';
+  classes.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c;
+    opt.textContent = "Kelas " + c;
+    select.appendChild(opt);
+  });
+  if (classes.includes(currentVal)) select.value = currentVal;
+}
+
+function applyFilterAndRender() {
+  const query = document.getElementById("searchInput").value.toLowerCase().trim();
+  const selectedClass = document.getElementById("classFilter").value;
+  const sortMode = document.getElementById("sortFilter").value;
+
+  filteredScores = allScores.filter(item => {
+    const matchName = (item.student_name || "").toLowerCase().includes(query);
+    const matchClass = selectedClass === "ALL" || item.student_class === selectedClass;
+    return matchName && matchClass;
+  });
+
+  // Sorting
+  if (sortMode === "newest") {
+    filteredScores.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+  } else if (sortMode === "highest") {
+    filteredScores.sort((a,b) => b.score - a.score);
+  } else if (sortMode === "lowest") {
+    filteredScores.sort((a,b) => a.score - b.score);
+  } else if (sortMode === "name") {
+    filteredScores.sort((a,b) => (a.student_name || "").localeCompare(b.student_name || ""));
+  }
+
+  renderStats();
+  renderTable();
+}
+
+function renderStats() {
+  const total = filteredScores.length;
+  document.getElementById("statTotal").textContent = total;
+
+  if (total === 0) {
+    document.getElementById("statAvg").textContent = "0";
+    document.getElementById("statMax").textContent = "0";
+    document.getElementById("statMaxName").textContent = "-";
+    document.getElementById("statMin").textContent = "0";
+    document.getElementById("statMinName").textContent = "-";
+    return;
+  }
+
+  const scoresOnly = filteredScores.map(s => s.score);
+  const sum = scoresOnly.reduce((a,b) => a + b, 0);
+  const avg = (sum / total).toFixed(1);
+  const max = Math.max(...scoresOnly);
+  const min = Math.min(...scoresOnly);
+
+  const topStudent = filteredScores.find(s => s.score === max);
+  const lowStudent = filteredScores.find(s => s.score === min);
+
+  document.getElementById("statAvg").textContent = avg;
+  document.getElementById("statMax").textContent = max;
+  document.getElementById("statMaxName").textContent = topStudent ? `${topStudent.student_name} (${topStudent.student_class})` : "-";
+  document.getElementById("statMin").textContent = min;
+  document.getElementById("statMinName").textContent = lowStudent ? `${lowStudent.student_name} (${lowStudent.student_class})` : "-";
+}
+
+function renderTable() {
+  const tbody = document.getElementById("scoresTbody");
+  const emptyState = document.getElementById("emptyState");
+  tbody.innerHTML = "";
+
+  if (filteredScores.length === 0) {
+    emptyState.style.display = "block";
+    return;
+  }
+  emptyState.style.display = "none";
+
+  filteredScores.forEach((row, idx) => {
+    const tr = document.createElement("tr");
+
+    // Format Tanggal
+    const dt = new Date(row.created_at);
+    const dateFormatted = dt.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+    const timeFormatted = dt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+
+    // Medali
+    let medalBadge = "-";
+    const medalText = (row.medal || "").toLowerCase();
+    if (medalText.includes("emas")) medalBadge = '<span class="badge badge-gold">🥇 Emas</span>';
+    else if (medalText.includes("perak")) medalBadge = '<span class="badge badge-silver">🥈 Perak</span>';
+    else if (medalText.includes("perunggu")) medalBadge = '<span class="badge badge-bronze">🥉 Perunggu</span>';
+
+    // Durasi
+    const durSec = row.time_spent_seconds || 0;
+    const durMin = Math.floor(durSec / 60);
+    const durRemSec = durSec % 60;
+    const durationFormatted = `${durMin}m ${durRemSec}s`;
+
+    tr.innerHTML = `
+      <td style="color:var(--muted)">${idx + 1}</td>
+      <td>
+        <div style="font-weight:600">${timeFormatted}</div>
+        <div style="font-size:12px; color:var(--muted)">${dateFormatted}</div>
+      </td>
+      <td><b>${escapeHtml(row.student_name)}</b></td>
+      <td><span class="badge" style="background:#f1f5f9; color:#334155">${escapeHtml(row.student_class)}</span></td>
+      <td><span class="badge-score">${row.score}</span></td>
+      <td><span style="color:var(--success); font-weight:700">${row.correct_count}</span> / <span style="color:var(--danger); font-weight:700">${row.wrong_count}</span></td>
+      <td>${medalBadge}</td>
+      <td style="font-size:13px">${durationFormatted}</td>
+      <td>
+        <button class="btn btn-secondary" style="padding:4px 10px; font-size:12px" onclick="viewDetail(${idx})">👁️ Detail</button>
+      </td>
+      <td>
+        <button class="btn btn-danger" style="padding:4px 8px; font-size:12px" onclick="deleteScore('${row.id}', '${escapeHtml(row.student_name)}')">🗑️</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function escapeHtml(str) {
+  if (!str) return "";
+  return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
+}
+
+// Event Search & Filter
+document.getElementById("searchInput").addEventListener("input", applyFilterAndRender);
+document.getElementById("classFilter").addEventListener("change", applyFilterAndRender);
+document.getElementById("sortFilter").addEventListener("change", applyFilterAndRender);
+document.getElementById("refreshBtn").addEventListener("click", loadScores);
+
+// Detail Modal
+window.viewDetail = function(idx) {
+  const row = filteredScores[idx];
+  if (!row) return;
+
+  document.getElementById("modalStudentName").textContent = `Detail Jawaban: ${row.student_name} (${row.student_class})`;
+  const body = document.getElementById("modalStudentBody");
+  body.innerHTML = "";
+
+  const details = row.answers_detail || [];
+  if (details.length === 0) {
+    body.innerHTML = '<p style="color:var(--muted); text-align:center">Tidak ada rincian jawaban per butir untuk rekaman ini.</p>';
+  } else {
+    details.forEach(item => {
+      const isOk = item.is_correct;
+      const card = document.createElement("div");
+      card.className = `question-check-item ${isOk ? 'is-correct' : 'is-wrong'}`;
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; margin-bottom:4px">
+          <b>Soal Nomor ${item.question_num}</b>
+          <span style="font-weight:700; color:${isOk ? 'var(--success)' : 'var(--danger)'}">
+            ${isOk ? '✓ Jawaban Benar' : '× Jawaban Salah'}
+          </span>
+        </div>
+        <div style="font-size:13px; color:#475569">
+          Pilihan Siswa: <b>Opsi ${"ABCDE"[item.chosen] || "-"}</b> 
+          ${!isOk ? `(Kunci: <b>Opsi ${"ABCDE"[item.correct]}</b>)` : ''}
+        </div>
+      `;
+      body.appendChild(card);
+    });
+  }
+
+  document.getElementById("detailModal").classList.add("show");
+};
+
+document.getElementById("closeModalBtn").onclick = () => document.getElementById("detailModal").classList.remove("show");
+document.getElementById("closeModalFooterBtn").onclick = () => document.getElementById("detailModal").classList.remove("show");
+
+// Hapus Nilai Siswa
+window.deleteScore = async function(id, name) {
+  if (!confirm(`Hapus data nilai siswa "${name}"? Tindakan ini tidak dapat dibatalkan.`)) return;
+
+  try {
+    const { error } = await supabaseClient.from("student_scores").delete().eq("id", id);
+    if (error) throw error;
+    allScores = allScores.filter(s => s.id !== id);
+    applyFilterAndRender();
+  } catch (err) {
+    alert("Gagal menghapus data: " + err.message);
+  }
+};
+
+// Export ke Excel / CSV
+document.getElementById("exportCsvBtn").addEventListener("click", () => {
+  if (filteredScores.length === 0) {
+    alert("Tidak ada data untuk diekspor.");
+    return;
+  }
+
+  const selectedClass = document.getElementById("classFilter").value;
+  const fileNameClass = selectedClass === "ALL" ? "Semua_Kelas" : selectedClass.replace(/\s+/g, "_");
+  const dateStr = new Date().toISOString().slice(0,10);
+  const filename = `Rekap_Nilai_Inverse_Archer_${fileNameClass}_${dateStr}.csv`;
+
+  const headers = ["No", "Tanggal", "Waktu", "Nama Siswa", "Kelas", "Skor", "Jumlah Benar", "Jumlah Salah", "Medali", "Durasi (Detik)"];
+  const rows = filteredScores.map((r, i) => {
+    const dt = new Date(r.created_at);
+    return [
+      i + 1,
+      `"${dt.toLocaleDateString('id-ID')}"`,
+      `"${dt.toLocaleTimeString('id-ID')}"`,
+      `"${(r.student_name || '').replace(/"/g, '""')}"`,
+      `"${(r.student_class || '').replace(/"/g, '""')}"`,
+      r.score,
+      r.correct_count,
+      r.wrong_count,
+      `"${r.medal || '-'}"`,
+      r.time_spent_seconds || 0
+    ];
+  });
+
+  const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(e => e.join(","))].join("\r\n");
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+</script>
+</body>
+</html>
