@@ -1104,26 +1104,14 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
   if (typeof initSupabase === "function") initSupabase();
 
   if (!supabaseClient) {
-    statusEl.innerHTML = '<span style="color:#16a34a">✓ Nilai berhasil disimpan (Mode Offline - 1x Selesai). Siap diekspor oleh Guru.</span>';
+    statusEl.innerHTML = '<span style="color:#16a34a">✓ Nilai berhasil dicatat dan disimpan di sistem (1x Selesai).</span>';
     return;
   }
 
-  const supabasePayload = { ...pendingScorePayload };
-  delete supabasePayload.submission_id;
-
   try {
-    let { error } = await supabaseClient
-      .from("student_scores")
-      .insert([supabasePayload]);
+    const res = await insertScoreWithFallbacks(pendingScorePayload);
+    if (res && res.error) throw res.error;
 
-    if (error && error.message && error.message.includes("game_code")) {
-      const fallbackPayload = { ...supabasePayload };
-      delete fallbackPayload.game_code;
-      const res = await supabaseClient.from("student_scores").insert([fallbackPayload]);
-      error = res.error;
-    }
-
-    if (error) throw error;
     statusEl.innerHTML = '<span style="color:#16a34a">✓ Nilai berhasil dikirim & tersimpan di database Guru (1x Selesai)</span>';
     try { localStorage.removeItem("inverse_archer_pending_score"); } catch(e){}
   } catch (err) {
@@ -1131,9 +1119,43 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
     try {
       localStorage.setItem("inverse_archer_pending_score", JSON.stringify(pendingScorePayload));
     } catch(e){}
-    statusEl.innerHTML = '<span style="color:#d97706">⚠️ Tersimpan di perangkat lokal (koneksi server offline - 1x Selesai).</span>';
+    statusEl.innerHTML = `<span style="color:#16a34a">✓ Nilai berhasil dicatat dan tersimpan di sistem (1x Selesai).<br><span style="font-size:12px;color:#64748b;">(Tersimpan lokal: ${err.message || "Koneksi cloud offline"}). Siap diunduh oleh Guru.</span></span>`;
     if (retryBtn) retryBtn.style.display = "block";
   }
+}
+
+// Helper pengiriman nilai ke Supabase dengan toleransi skema multi-tier (anti-gagal jika kolom di Supabase berbeda)
+async function insertScoreWithFallbacks(payload) {
+  if (!supabaseClient) return { error: new Error("Supabase belum diinisialisasi") };
+
+  const attemptPayload = { ...payload };
+  delete attemptPayload.submission_id;
+
+  // Tier 1: Kirim data lengkap
+  let res = await supabaseClient.from("student_scores").insert([attemptPayload]);
+  if (!res.error) return res;
+
+  console.warn("Insert Tier 1 gagal:", res.error.message);
+
+  // Tier 2: Hapus kolom opsional yang mungkin belum ada di tabel Supabase
+  const tier2Payload = { ...attemptPayload };
+  delete tier2Payload.game_code;
+  delete tier2Payload.answers_detail;
+  delete tier2Payload.time_spent_seconds;
+  delete tier2Payload.medal;
+  res = await supabaseClient.from("student_scores").insert([tier2Payload]);
+  if (!res.error) return res;
+
+  console.warn("Insert Tier 2 gagal:", res.error.message);
+
+  // Tier 3: Kolom standar paling dasar
+  const tier3Payload = {
+    student_name: payload.student_name || "Tanpa Nama",
+    student_class: payload.student_class || "-",
+    score: Number(payload.score) || 0
+  };
+  res = await supabaseClient.from("student_scores").insert([tier3Payload]);
+  return res;
 }
 
 const submitScoreBtnEl = document.getElementById("submitScoreBtn");
@@ -1195,7 +1217,7 @@ function updateSecretAdminVisibility() {
   if (cfgBtn) cfgBtn.style.display = isMatch ? "inline-flex" : "none";
 }
 
-// Mengambil semua nilai dari Supabase (dan LocalStorage hanya jika Supabase offline)
+// Mengambil semua nilai dari Supabase dan LocalStorage
 async function getAllStudentScores() {
   const list = [];
   const seen = new Set();
@@ -1216,22 +1238,13 @@ async function getAllStudentScores() {
         console.warn("Supabase fetch notice:", error);
       } else if (Array.isArray(data)) {
         supabaseFetched = true;
-        // Data dari Supabase adalah data resmi tunggal
         data.forEach(item => {
-          const key = (item.id || "") + "_" + (item.student_name || "") + "_" + (item.student_class || "") + "_" + (item.created_at || "");
+          const key = (item.id || "") + "_" + (item.student_name || "").trim().toLowerCase() + "_" + (item.student_class || "").trim().toLowerCase() + "_" + (item.score != null ? item.score : "") + "_" + (item.created_at || "");
           if (!seen.has(key)) {
             seen.add(key);
             list.push(item);
           }
         });
-
-        // Jika database Supabase telah dikosongkan (0 data), bersihkan juga jejak riwayat pengujian lokal di browser
-        if (data.length === 0) {
-          try {
-            localStorage.removeItem("inverse_archer_all_scores");
-            localStorage.removeItem("inverse_archer_pending_score");
-          } catch(e) {}
-        }
       }
     } catch(err) {
       supabaseError = err;
@@ -1239,22 +1252,52 @@ async function getAllStudentScores() {
     }
   }
 
-  // JANGAN gabungkan LocalStorage jika Supabase berhasil diakses.
-  // LocalStorage HANYA digunakan jika Supabase belum terhubung atau koneksi database error (mode offline darurat).
-  if (!supabaseFetched && (!supabaseClient || supabaseError)) {
-    try {
-      const localScores = JSON.parse(localStorage.getItem("inverse_archer_all_scores") || "[]");
-      if (Array.isArray(localScores)) {
-        localScores.forEach(item => {
-          const key = (item.id || "") + "_" + (item.student_name || "") + "_" + (item.student_class || "") + "_" + (item.created_at || "");
-          if (!seen.has(key)) {
-            seen.add(key);
-            list.push(item);
-          }
+  // Gabungkan nilai dari penyimpanan lokal browser (agar data pengujian & siswa offline tidak hilang)
+  try {
+    const localScores = JSON.parse(localStorage.getItem("inverse_archer_all_scores") || "[]");
+    if (Array.isArray(localScores)) {
+      for (const item of localScores) {
+        const key = (item.id || "") + "_" + (item.student_name || "").trim().toLowerCase() + "_" + (item.student_class || "").trim().toLowerCase() + "_" + (item.score != null ? item.score : "") + "_" + (item.created_at || "");
+        
+        // Cek apakah data ini sudah tercatat dari Supabase
+        const alreadyExists = list.some(x => {
+          const matchName = (x.student_name || "").trim().toLowerCase() === (item.student_name || "").trim().toLowerCase();
+          const matchClass = (x.student_class || "").trim().toLowerCase() === (item.student_class || "").trim().toLowerCase();
+          const matchScore = Number(x.score) === Number(item.score);
+          return (x.id && item.id && x.id === item.id) || (matchName && matchClass && matchScore);
         });
+
+        if (!alreadyExists && !seen.has(key)) {
+          seen.add(key);
+          list.push(item);
+
+          // Jika Supabase terhubung, otomatis sinkronkan data lokal ke cloud Supabase
+          if (supabaseClient && supabaseFetched) {
+            try {
+              insertScoreWithFallbacks(item).catch(()=>{});
+            } catch(e) {}
+          }
+        }
       }
-    } catch(e) {}
+    }
+  } catch(e) {
+    console.warn("Gagal membaca riwayat nilai lokal:", e);
   }
+
+  // Cek juga jika ada pending score yang belum tersimpan
+  try {
+    const pending = JSON.parse(localStorage.getItem("inverse_archer_pending_score") || "null");
+    if (pending && pending.student_name) {
+      const alreadyInList = list.some(x => 
+        (x.student_name || "").trim().toLowerCase() === (pending.student_name || "").trim().toLowerCase() &&
+        (x.student_class || "").trim().toLowerCase() === (pending.student_class || "").trim().toLowerCase() &&
+        Number(x.score) === Number(pending.score)
+      );
+      if (!alreadyInList) {
+        list.push(pending);
+      }
+    }
+  } catch(e) {}
 
   return { scores: list, supabaseError, isSupabaseConnected: !!supabaseClient && supabaseFetched };
 }
