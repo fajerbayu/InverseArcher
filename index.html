@@ -552,7 +552,7 @@ font-size:17px !important;line-height:1.5 !important}
 <section id="login" class="screen active"><div class="targetLogo" aria-label="Logo target panahan">
   <div class="targetRing r1"><div class="targetRing r2"><div class="targetRing r3"><div class="bullseye"></div></div></div></div>
   <span class="miniArrow"></span><span class="face eye1"></span><span class="face eye2"></span><span class="smile"></span>
-</div><h1 style="text-align:center">Inverse Archer</h1><p class="sub">Bidik balon, taklukkan soal fungsi invers!</p><div class="card"><h2>Masuk Permainan</h2><input id="name" maxlength="24" placeholder="Nama pemain"><input id="class" maxlength="12" placeholder="Ketik kelas, contoh: X.4"><input id="gameCode" maxlength="10" placeholder="Kode permainan (contoh: 21)"><button id="loginBtn">Lanjut</button><p class="tiny">Nama dan kode kelas akan digunakan untuk pengelompokan penilaian.</p></div></section>
+</div><h1 style="text-align:center">Inverse Archer</h1><p class="sub">Bidik balon, taklukkan soal fungsi invers!</p><div class="card"><h2>Masuk Permainan</h2><input id="name" maxlength="24" placeholder="Nama pemain"><input id="class" maxlength="12" placeholder="Ketik kelas, contoh: X.4"><input id="gameCode" maxlength="10" placeholder="Kode permainan"><button id="loginBtn">Lanjut</button><p class="tiny">Nama dan kode kelas akan digunakan untuk pengelompokan penilaian.</p></div></section>
 <section id="menu" class="screen"><div class="card"><div class="targetLogo menuTarget" aria-label="Logo target panahan">
 <div class="targetRing r1"><div class="targetRing r2"><div class="targetRing r3"><div class="bullseye"></div></div></div></div>
 <span class="miniArrow"></span><span class="face eye1"></span><span class="face eye2"></span><span class="smile"></span>
@@ -620,6 +620,18 @@ font-size:17px !important;line-height:1.5 !important}
     <h2 id="infoTitle"></h2>
     <div id="infoContent"></div>
     <button id="infoBack">KEMBALI</button>
+  </div>
+</div>
+<div id="codeErrorModal" class="infoModal">
+  <div class="card infoPopup" style="text-align:center;max-width:380px;">
+    <div style="font-size:44px;margin-bottom:6px;">⚠️</div>
+    <h2 style="font-size:20px;color:#dc2626;margin-bottom:8px;">Kode Permainan Salah</h2>
+    <p id="codeErrorMsg" style="font-size:15px;color:#475569;line-height:1.5;margin-bottom:20px;">
+      Kode permainan yang kamu masukkan tidak sesuai. Silakan periksa kembali kode yang diberikan oleh guru.
+    </p>
+    <button id="codeErrorBackBtn" style="background:#2563eb;color:#fff;font-weight:700;width:100%;padding:13px;border-radius:12px;border:none;cursor:pointer;font-size:15px;box-shadow:0 4px 12px rgba(37,99,235,0.3);">
+      ← Kembali untuk Mengisi Kode
+    </button>
   </div>
 </div>
 <div id="modal"><div class="card question"><div class="tiny" id="qnum"></div><h2 id="qtext"></h2><div id="opts"></div><div class="feedback" id="feedback"></div><button id="next">Lanjut</button></div></div>
@@ -742,6 +754,27 @@ function show(id){document.querySelectorAll(".screen").forEach(e=>e.classList.re
 
 const ALLOWED_GAME_CODES = ["21", "17", "07", "20", "05"];
 
+function showCodeErrorModal(message) {
+  playSfx("sfxWrong", 0.9);
+  const modal = document.getElementById("codeErrorModal");
+  const msgEl = document.getElementById("codeErrorMsg");
+  if (msgEl && message) msgEl.textContent = message;
+  if (modal) modal.classList.add("show");
+}
+
+const codeErrorBackBtn = document.getElementById("codeErrorBackBtn");
+if (codeErrorBackBtn) {
+  codeErrorBackBtn.onclick = () => {
+    const modal = document.getElementById("codeErrorModal");
+    if (modal) modal.classList.remove("show");
+    const inp = document.getElementById("gameCode");
+    if (inp) {
+      inp.focus();
+      inp.select();
+    }
+  };
+}
+
 $("#loginBtn").onclick=()=>{
   player=$("#name").value.trim();
   kelas=$("#class").value.trim();
@@ -756,10 +789,10 @@ $("#loginBtn").onclick=()=>{
 
   if (!isAdmin) {
     if (!codeInput) {
-      return alert("Silakan masukkan kode permainan terlebih dahulu.");
+      return showCodeErrorModal("Silakan masukkan kode permainan terlebih dahulu untuk melanjutkan.");
     }
     if (!ALLOWED_GAME_CODES.includes(codeInput)) {
-      return alert("Kode permainan salah! Anda tidak dapat masuk ke halaman permainan.\nSilakan periksa kembali kode yang diberikan oleh guru.");
+      return showCodeErrorModal("Kode permainan yang kamu masukkan salah! Anda tidak dapat masuk ke halaman permainan. Silakan periksa kembali kode yang diberikan oleh guru.");
     }
   }
 
