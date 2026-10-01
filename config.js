@@ -10,23 +10,36 @@
 // ===============================================================
 
 const SUPABASE_CONFIG = {
-  url: "https://GANTI_DENGAN_PROJECT_URL_ANDA.supabase.co",
-  anonKey: "GANTI_DENGAN_ANON_PUBLIC_KEY_ANDA"
+  url: "https://hpteiddvawtfvcjivdup.supabase.co",
+  anonKey: "sb_publishable_1ONiiZVizIteQbt2kfU07Q_UIwVlxtm"
 };
 
 // Inisialisasi client Supabase secara global
 let supabaseClient = null;
 
+function normalizeSupabaseUrl(rawUrl) {
+  if (!rawUrl) return "";
+  let u = rawUrl.trim();
+  const match = u.match(/supabase\.com\/dashboard\/project\/([a-zA-Z0-9_-]+)/);
+  if (match && match[1]) {
+    return `https://${match[1]}.supabase.co`;
+  }
+  return u.replace(/\/+$/, "");
+}
+
 function getActiveSupabaseConfig() {
-  let url = (SUPABASE_CONFIG.url || "").trim();
+  let url = normalizeSupabaseUrl(SUPABASE_CONFIG.url || "");
   let anonKey = (SUPABASE_CONFIG.anonKey || "").trim();
 
-  // Dukung override dari pengaturan UI browser jika file config.js belum diedit
+  // Dukung override dari pengaturan UI browser jika ada nilai khusus
   try {
     const saved = JSON.parse(localStorage.getItem("inverse_archer_supabase_config") || "{}");
-    if (saved && saved.url && saved.anonKey && saved.url.trim() && saved.anonKey.trim()) {
-      url = saved.url.trim();
-      anonKey = saved.anonKey.trim();
+    if (saved && saved.url && saved.anonKey && saved.url.trim() && saved.anonKey.trim() && !saved.url.includes("GANTI_DENGAN")) {
+      const normalizedSavedUrl = normalizeSupabaseUrl(saved.url);
+      if (normalizedSavedUrl) {
+        url = normalizedSavedUrl;
+        anonKey = saved.anonKey.trim();
+      }
     }
   } catch (e) {}
 
