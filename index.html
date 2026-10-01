@@ -1116,7 +1116,7 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
     const res = await insertScoreWithFallbacks(pendingScorePayload);
     if (res && res.error) throw res.error;
 
-    statusEl.innerHTML = '<span style="color:#16a34a">✓ Nilai BERHASIL terkirim & tersimpan di database Cloud Guru! (1x Selesai)</span>';
+    statusEl.innerHTML = '<span style="color:#16a34a">Nilai berhasil dikirim</span>';
     try { localStorage.removeItem("inverse_archer_pending_score"); } catch(e){}
   } catch (err) {
     console.error("Gagal simpan nilai ke Supabase:", err);
