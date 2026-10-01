@@ -545,18 +545,29 @@ font-size:17px !important;line-height:1.5 !important}
 }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="config.js"></script>
 </head>
 <body><main id="app">
 <section id="login" class="screen active"><div class="targetLogo" aria-label="Logo target panahan">
   <div class="targetRing r1"><div class="targetRing r2"><div class="targetRing r3"><div class="bullseye"></div></div></div></div>
   <span class="miniArrow"></span><span class="face eye1"></span><span class="face eye2"></span><span class="smile"></span>
-</div><h1 style="text-align:center">Inverse Archer</h1><p class="sub">Bidik balon, taklukkan soal fungsi invers!</p><div class="card"><h2>Masuk Permainan</h2><input id="name" maxlength="24" placeholder="Nama pemain"><input id="class" maxlength="12" placeholder="Ketik kelas, contoh: X.4"><button id="loginBtn">Lanjut</button><p class="tiny">Nama akan digunakan sebagai username selama permainan.</p></div></section>
+</div><h1 style="text-align:center">Inverse Archer</h1><p class="sub">Bidik balon, taklukkan soal fungsi invers!</p><div class="card"><h2>Masuk Permainan</h2><input id="name" maxlength="24" placeholder="Nama pemain"><input id="class" maxlength="12" placeholder="Ketik kelas, contoh: X.4"><button id="loginBtn">Lanjut</button>
+<div id="secretLoginBanner" style="display:none;margin-top:14px;background:#f0fdf4;border:2px dashed #22c55e;border-radius:16px;padding:14px;text-align:center;box-shadow:0 4px 15px rgba(34,197,94,0.15);">
+  <div style="font-size:12px;font-weight:800;color:#15803d;letter-spacing:0.5px;text-transform:uppercase;">👑 Menu Rahasia Guru Aktif</div>
+  <div style="font-size:13px;color:#166534;margin:4px 0 10px;font-weight:600;">Halo Zahrah (Unsika)! Akses unduh rekap nilai seluruh siswa telah terbuka.</div>
+  <button id="secretDownloadLoginBtn" type="button" style="background:#16a34a;color:#ffffff;font-weight:800;width:100%;padding:12px;border-radius:12px;border:none;cursor:pointer;font-size:14px;box-shadow:0 4px 12px rgba(22,163,74,0.3);display:flex;align-items:center;justify-content:center;gap:8px;">
+    📥 Download Nilai Siswa (Excel)
+  </button>
+  <div id="secretDownloadStatus" style="margin-top:8px;font-size:12px;font-weight:600;min-height:16px;"></div>
+</div>
+<p class="tiny">Nama akan digunakan sebagai username selama permainan.</p></div></section>
 <section id="menu" class="screen"><div class="card"><div class="targetLogo menuTarget" aria-label="Logo target panahan">
 <div class="targetRing r1"><div class="targetRing r2"><div class="targetRing r3"><div class="bullseye"></div></div></div></div>
 <span class="miniArrow"></span><span class="face eye1"></span><span class="face eye2"></span><span class="smile"></span>
 </div><h2>Halo, <span id="hello"></span>!</h2>
 <div class="menuThreeButtons">
+<button id="secretMenuDownloadBtn" style="display:none;background:#16a34a;color:#fff;font-weight:800;border:2px solid #15803d;box-shadow:0 6px 16px rgba(22,163,74,0.35);">📥 DOWNLOAD REKAP NILAI (EXCEL)</button>
 <button id="learningBtn" class="secondary">TUJUAN PEMBELAJARAN</button>
 <button id="start">START GAME</button>
 <button id="instructionBtn" class="secondary">PETUNJUK PERMAINAN</button>
@@ -738,7 +749,14 @@ document.addEventListener("click",e=>{
  playSfx("sfxClick",.72);
 });
 function show(id){document.querySelectorAll(".screen").forEach(e=>e.classList.remove("active"));$("#"+id).classList.add("active")}
-$("#loginBtn").onclick=()=>{player=$("#name").value.trim();kelas=$("#class").value.trim();if(!player||!kelas)return alert("Isi nama dan kelas terlebih dahulu.");$("#hello").textContent=player;show("menu")}
+$("#loginBtn").onclick=()=>{
+  player=$("#name").value.trim();
+  kelas=$("#class").value.trim();
+  if(!player||!kelas)return alert("Isi nama dan kelas terlebih dahulu.");
+  $("#hello").textContent=player;
+  if(typeof updateSecretAdminVisibility==="function")updateSecretAdminVisibility();
+  show("menu");
+}
 
 const learningHTML=`<ol>
 <li>Menentukan fungsi invers dari suatu fungsi yang diberikan.</li>
@@ -822,13 +840,6 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
   statusEl.innerHTML = '<span style="color:#2563eb">⏳ Menyimpan nilai ke database Guru...</span>';
   if (retryBtn) retryBtn.style.display = "none";
 
-  if (typeof initSupabase === "function") initSupabase();
-
-  if (!supabaseClient) {
-    statusEl.innerHTML = '<span style="color:#64748b">ℹ️ Mode Offline (Atur SUPABASE_URL & ANON_KEY di config.js untuk simpan ke cloud)</span>';
-    return;
-  }
-
   const durationSeconds = Math.max(0, 2400 - timeLeft);
   const detail = answers.map((ans, idx) => ({
     question_num: idx + 1,
@@ -845,8 +856,25 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
     wrong_count: wrongN,
     medal: medalName || "-",
     time_spent_seconds: durationSeconds,
-    answers_detail: detail
+    answers_detail: detail,
+    created_at: new Date().toISOString()
   };
+
+  // Selalu simpan ke riwayat lokal di browser (offline safe)
+  try {
+    const localScores = JSON.parse(localStorage.getItem("inverse_archer_all_scores") || "[]");
+    localScores.push(pendingScorePayload);
+    localStorage.setItem("inverse_archer_all_scores", JSON.stringify(localScores));
+  } catch(e) {
+    console.warn("Gagal simpan lokal riwayat:", e);
+  }
+
+  if (typeof initSupabase === "function") initSupabase();
+
+  if (!supabaseClient) {
+    statusEl.innerHTML = '<span style="color:#16a34a">✓ Nilai berhasil disimpan (Mode Offline). Siap diekspor oleh Guru.</span>';
+    return;
+  }
 
   try {
     const { error } = await supabaseClient
@@ -854,14 +882,14 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
       .insert([pendingScorePayload]);
 
     if (error) throw error;
-    statusEl.innerHTML = '<span style="color:#16a34a">✓ Nilai berhasil dikirim & tersimpan di sistem Guru</span>';
+    statusEl.innerHTML = '<span style="color:#16a34a">✓ Nilai berhasil dikirim & tersimpan di database Guru</span>';
     try { localStorage.removeItem("inverse_archer_pending_score"); } catch(e){}
   } catch (err) {
     console.error("Gagal simpan nilai ke Supabase:", err);
     try {
       localStorage.setItem("inverse_archer_pending_score", JSON.stringify(pendingScorePayload));
     } catch(e){}
-    statusEl.innerHTML = '<span style="color:#dc2626">⚠️ Gagal mengirim nilai ke server. Nilai tersimpan di perangkat.</span>';
+    statusEl.innerHTML = '<span style="color:#d97706">⚠️ Tersimpan di perangkat lokal (koneksi server offline).</span>';
     if (retryBtn) retryBtn.style.display = "block";
   }
 }
@@ -878,6 +906,210 @@ if (retryBtnEl) {
       );
     }
   };
+}
+
+// ===============================================================
+// SISTEM MENU RAHASIA KHUSUS ZAHRAH (UNSIKA) & EXPORT EXCEL NILAI
+// ===============================================================
+function isZahrahUnsika() {
+  const n = ($("#name") ? $("#name").value : "").trim().toLowerCase();
+  const c = ($("#class") ? $("#class").value : "").trim().toLowerCase();
+  return n === "zahrah" && c === "unsika";
+}
+
+function updateSecretAdminVisibility() {
+  const isMatch = isZahrahUnsika();
+  const banner = document.getElementById("secretLoginBanner");
+  const menuBtn = document.getElementById("secretMenuDownloadBtn");
+
+  if (banner) banner.style.display = isMatch ? "block" : "none";
+  if (menuBtn) menuBtn.style.display = isMatch ? "block" : "none";
+}
+
+// Pasang event listener input agar saat mengetik langsung terdeteksi
+if ($("#name")) $("#name").addEventListener("input", updateSecretAdminVisibility);
+if ($("#class")) $("#class").addEventListener("input", updateSecretAdminVisibility);
+
+// Mengambil semua nilai dari Supabase dan LocalStorage
+async function getAllStudentScores() {
+  const list = [];
+  const seen = new Set();
+
+  if (typeof initSupabase === "function") initSupabase();
+
+  if (supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient
+        .from("student_scores")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        data.forEach(item => {
+          const key = (item.id || "") + "_" + (item.student_name || "") + "_" + (item.student_class || "") + "_" + (item.created_at || "");
+          if (!seen.has(key)) {
+            seen.add(key);
+            list.push(item);
+          }
+        });
+      } else if (error) {
+        console.warn("Supabase fetch notice:", error);
+      }
+    } catch(err) {
+      console.warn("Supabase fetch exception:", err);
+    }
+  }
+
+  // Gabungkan dengan penyimpanan lokal
+  try {
+    const localScores = JSON.parse(localStorage.getItem("inverse_archer_all_scores") || "[]");
+    if (Array.isArray(localScores)) {
+      localScores.forEach(item => {
+        const key = (item.id || "") + "_" + (item.student_name || "") + "_" + (item.student_class || "") + "_" + (item.created_at || "");
+        if (!seen.has(key)) {
+          seen.add(key);
+          list.push(item);
+        }
+      });
+    }
+  } catch(e) {}
+
+  return list;
+}
+
+// Generate file Excel rapih sesuai spesifikasi:
+// “Nama” “Kelas” “soal1” “soal2” “soal3” “soal4” “soal5” “soal6” “soal7” “soal8” “soal9” “soal10” “Nilai”
+// Benar = 10, Salah = 0
+function generateExcelRekap(scores) {
+  const headers = [
+    "Nama", "Kelas",
+    "soal1", "soal2", "soal3", "soal4", "soal5",
+    "soal6", "soal7", "soal8", "soal9", "soal10",
+    "Nilai"
+  ];
+
+  const rows = scores.map(s => {
+    let details = s.answers_detail;
+    if (typeof details === "string") {
+      try { details = JSON.parse(details); } catch(e){ details = []; }
+    }
+    if (!Array.isArray(details)) details = [];
+
+    const qScores = [];
+    for (let q = 1; q <= 10; q++) {
+      const qItem = details.find(d => Number(d.question_num) === q) || details[q - 1];
+      if (qItem && (qItem.is_correct === true || qItem.is_correct === 1 || qItem.is_correct === "true")) {
+        qScores.push(10);
+      } else {
+        qScores.push(0);
+      }
+    }
+
+    const totalNilai = s.score != null ? Number(s.score) : qScores.reduce((acc, curr) => acc + curr, 0);
+
+    return [
+      s.student_name || "Tanpa Nama",
+      s.student_class || "-",
+      ...qScores,
+      totalNilai
+    ];
+  });
+
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const fileName = `Rekap_Nilai_Siswa_Inverse_Archer_${dateStr}.xlsx`;
+
+  if (typeof XLSX !== "undefined") {
+    const wsData = [headers, ...rows];
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    // Format lebar kolom rapih
+    ws['!cols'] = [
+      { wch: 25 }, // Nama
+      { wch: 14 }, // Kelas
+      { wch: 9 },  // soal1
+      { wch: 9 },  // soal2
+      { wch: 9 },  // soal3
+      { wch: 9 },  // soal4
+      { wch: 9 },  // soal5
+      { wch: 9 },  // soal6
+      { wch: 9 },  // soal7
+      { wch: 9 },  // soal8
+      { wch: 9 },  // soal9
+      { wch: 9 },  // soal10
+      { wch: 12 }  // Nilai
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, "Rekap Nilai Siswa");
+    XLSX.writeFile(wb, fileName);
+    return true;
+  } else {
+    // Fallback CSV (UTF-8 BOM) jika SheetJS tidak tersedia
+    const csvContent = "\uFEFF" + [
+      headers.join(","),
+      ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(","))
+    ].join("\r\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName.replace(".xlsx", ".csv");
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return true;
+  }
+}
+
+async function downloadNilaiSecretAction(statusEl) {
+  if (statusEl) statusEl.innerHTML = '<span style="color:#2563eb">⏳ Sedang mengambil data nilai...</span>';
+
+  try {
+    const scores = await getAllStudentScores();
+    if (!scores || scores.length === 0) {
+      if (statusEl) statusEl.innerHTML = '<span style="color:#d97706">ℹ️ Belum ada nilai tersimpan.</span>';
+      const sample = confirm("Belum ada data nilai siswa yang tersimpan di sistem.\n\nApakah Anda ingin mengunduh contoh file Excel (format simulasi) untuk melihat kerapian format tabelnya?");
+      if (sample) {
+        const dummyScores = [
+          {
+            student_name: "Contoh Siswa A",
+            student_class: "X.1",
+            score: 90,
+            answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k !== 3 }))
+          },
+          {
+            student_name: "Contoh Siswa B",
+            student_class: "X.1",
+            score: 80,
+            answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k < 8 }))
+          }
+        ];
+        generateExcelRekap(dummyScores);
+        if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a">✓ Contoh format Excel berhasil diunduh.</span>';
+      }
+      return;
+    }
+
+    generateExcelRekap(scores);
+    if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a">✓ Berhasil download rekap ${scores.length} siswa!</span>`;
+    alert(`File Excel rekap nilai berhasil diunduh untuk ${scores.length} siswa!`);
+  } catch (err) {
+    console.error("Gagal unduh nilai:", err);
+    if (statusEl) statusEl.innerHTML = '<span style="color:#dc2626">⚠️ Terjadi kesalahan saat mengunduh.</span>';
+    alert("Gagal mengunduh file Excel: " + err.message);
+  }
+}
+
+// Pasang handler tombol
+const secretDlLogin = document.getElementById("secretDownloadLoginBtn");
+if (secretDlLogin) {
+  secretDlLogin.onclick = () => downloadNilaiSecretAction(document.getElementById("secretDownloadStatus"));
+}
+const secretDlMenu = document.getElementById("secretMenuDownloadBtn");
+if (secretDlMenu) {
+  secretDlMenu.onclick = () => downloadNilaiSecretAction();
 }
 
 $("#practiceBtn").onclick=()=>startPracticeTraining();

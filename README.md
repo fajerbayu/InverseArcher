@@ -68,21 +68,21 @@ CREATE TABLE IF NOT EXISTS student_scores (
 -- 2. Aktifkan Row Level Security (RLS)
 ALTER TABLE student_scores ENABLE ROW LEVEL SECURITY;
 
--- 3. Kebijakan untuk Siswa (Anonim): Hanya boleh INSERT nilai miliknya
+-- 3. Kebijakan Kirim Nilai: Siswa dapat mengirimkan nilai miliknya
 CREATE POLICY "Allow public insert" 
 ON student_scores 
 FOR INSERT 
 TO anon 
 WITH CHECK (true);
 
--- 4. Kebijakan untuk Guru (Authenticated): Hanya akun guru yang boleh membaca data
-CREATE POLICY "Allow authenticated read" 
+-- 4. Kebijakan Rekap Nilai: Memungkinkan dasbor dan fitur rahasia guru membaca rekap nilai
+CREATE POLICY "Allow read student scores" 
 ON student_scores 
 FOR SELECT 
-TO authenticated 
+TO public 
 USING (true);
 
--- 5. Kebijakan untuk Guru: Hanya akun guru yang boleh menghapus data
+-- 5. Kebijakan Hapus: Hanya akun guru terautentikasi yang boleh menghapus data
 CREATE POLICY "Allow authenticated delete" 
 ON student_scores 
 FOR DELETE 
