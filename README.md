@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS student_scores (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     student_name TEXT NOT NULL,
     student_class TEXT NOT NULL,
+    game_code TEXT,
     score INTEGER NOT NULL,
     correct_count INTEGER NOT NULL,
     wrong_count INTEGER NOT NULL,
@@ -64,6 +65,9 @@ CREATE TABLE IF NOT EXISTS student_scores (
     answers_detail JSONB,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Tambahkan kolom game_code jika tabel sudah pernah dibuat sebelumnya
+ALTER TABLE student_scores ADD COLUMN IF NOT EXISTS game_code TEXT;
 
 -- 2. Aktifkan Row Level Security (RLS)
 ALTER TABLE student_scores ENABLE ROW LEVEL SECURITY;

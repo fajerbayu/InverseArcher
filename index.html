@@ -552,7 +552,7 @@ font-size:17px !important;line-height:1.5 !important}
 <section id="login" class="screen active"><div class="targetLogo" aria-label="Logo target panahan">
   <div class="targetRing r1"><div class="targetRing r2"><div class="targetRing r3"><div class="bullseye"></div></div></div></div>
   <span class="miniArrow"></span><span class="face eye1"></span><span class="face eye2"></span><span class="smile"></span>
-</div><h1 style="text-align:center">Inverse Archer</h1><p class="sub">Bidik balon, taklukkan soal fungsi invers!</p><div class="card"><h2>Masuk Permainan</h2><input id="name" maxlength="24" placeholder="Nama pemain"><input id="class" maxlength="12" placeholder="Ketik kelas, contoh: X.4"><button id="loginBtn">Lanjut</button><p class="tiny">Nama akan digunakan sebagai username selama permainan.</p></div></section>
+</div><h1 style="text-align:center">Inverse Archer</h1><p class="sub">Bidik balon, taklukkan soal fungsi invers!</p><div class="card"><h2>Masuk Permainan</h2><input id="name" maxlength="24" placeholder="Nama pemain"><input id="class" maxlength="12" placeholder="Ketik kelas, contoh: X.4"><input id="gameCode" maxlength="10" placeholder="Kode permainan (contoh: 21)"><button id="loginBtn">Lanjut</button><p class="tiny">Nama dan kode kelas akan digunakan untuk pengelompokan penilaian.</p></div></section>
 <section id="menu" class="screen"><div class="card"><div class="targetLogo menuTarget" aria-label="Logo target panahan">
 <div class="targetRing r1"><div class="targetRing r2"><div class="targetRing r3"><div class="bullseye"></div></div></div></div>
 <span class="miniArrow"></span><span class="face eye1"></span><span class="face eye2"></span><span class="smile"></span>
@@ -725,7 +725,7 @@ const patterns=[
  [{type:"orbitCross",speed:1.5,phase:0},{type:"orbitCross",speed:1.8,phase:1.6},{type:"orbitCross",speed:2.05,phase:3.1},{type:"orbitCross",speed:2.3,phase:4.7}]
 ]
 const colors=["#ff6f91","#67c8e8","#ffad5c","#9d7bea","#66c98b","#f47c73"];
-let player="",kelas="",i=0,score=0,answers=[],balloons=[],raf=0,last=0,roundStart=0,locked=false,ammo=10;
+let player="",kelas="",currentGameCode="",i=0,score=0,answers=[],balloons=[],raf=0,last=0,roundStart=0,locked=false,ammo=10;
 let timeLeft=2400,timerInt=null,practiceRaf=0,practiceSession=1,practiceAmmo=10,practiceX=-55,practiceDir=1,practiceLocked=false;
 const $=s=>document.querySelector(s), arena=$("#arena");
 function playSfx(id,volume=1){
@@ -739,10 +739,31 @@ document.addEventListener("click",e=>{
  playSfx("sfxClick",.72);
 });
 function show(id){document.querySelectorAll(".screen").forEach(e=>e.classList.remove("active"));$("#"+id).classList.add("active")}
+
+const ALLOWED_GAME_CODES = ["21", "17", "07", "20", "05"];
+
 $("#loginBtn").onclick=()=>{
   player=$("#name").value.trim();
   kelas=$("#class").value.trim();
+  let codeInput=($("#gameCode")?$("#gameCode").value:"").trim();
+
   if(!player||!kelas)return alert("Isi nama dan kelas terlebih dahulu.");
+
+  const isAdmin = typeof isZahrahUnsika === "function" && isZahrahUnsika();
+
+  if (codeInput === "7") codeInput = "07";
+  if (codeInput === "5") codeInput = "05";
+
+  if (!isAdmin) {
+    if (!codeInput) {
+      return alert("Silakan masukkan kode permainan terlebih dahulu.");
+    }
+    if (!ALLOWED_GAME_CODES.includes(codeInput)) {
+      return alert("Kode permainan salah! Anda tidak dapat masuk ke halaman permainan.\nSilakan periksa kembali kode yang diberikan oleh guru.");
+    }
+  }
+
+  currentGameCode = codeInput || "21";
   $("#hello").textContent=player;
   if(typeof updateSecretAdminVisibility==="function")updateSecretAdminVisibility();
   show("menu");
@@ -838,9 +859,13 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
     is_correct: ans === Q[idx][2]
   }));
 
+  const codeToSave = (currentGameCode || "21").trim();
+  detail.push({ is_meta: true, game_code: codeToSave });
+
   pendingScorePayload = {
     student_name: player || "Tanpa Nama",
     student_class: kelas || "-",
+    game_code: codeToSave,
     score: finalScore,
     correct_count: correctN,
     wrong_count: wrongN,
@@ -867,9 +892,16 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
   }
 
   try {
-    const { error } = await supabaseClient
+    let { error } = await supabaseClient
       .from("student_scores")
       .insert([pendingScorePayload]);
+
+    if (error && error.message && error.message.includes("game_code")) {
+      const fallbackPayload = { ...pendingScorePayload };
+      delete fallbackPayload.game_code;
+      const res = await supabaseClient.from("student_scores").insert([fallbackPayload]);
+      error = res.error;
+    }
 
     if (error) throw error;
     statusEl.innerHTML = '<span style="color:#16a34a">✓ Nilai berhasil dikirim & tersimpan di database Guru</span>';
@@ -963,8 +995,31 @@ async function getAllStudentScores() {
   return list;
 }
 
-// Generate file Excel rapih sesuai spesifikasi:
-// “Nama” “Kelas” “soal1” “soal2” “soal3” “soal4” “soal5” “soal6” “soal7” “soal8” “soal9” “soal10” “Nilai”
+// Helper mengekstrak kode game dari rekaman siswa
+function extractGameCode(item) {
+  let c = (item.game_code || "").toString().trim();
+  if (!c && item.answers_detail) {
+    let det = item.answers_detail;
+    if (typeof det === "string") {
+      try { det = JSON.parse(det); } catch(e){}
+    }
+    if (Array.isArray(det)) {
+      const meta = det.find(x => x && x.is_meta);
+      if (meta && meta.game_code) c = meta.game_code.toString().trim();
+    }
+  }
+  if (c === "7") c = "07";
+  if (c === "5") c = "05";
+  return c;
+}
+
+// Generate file Excel 5 Sheet sesuai spesifikasi:
+// Sheet 1: Kode 21
+// Sheet 2: Kode 17
+// Sheet 3: Kode 07
+// Sheet 4: Kode 20
+// Sheet 5: Kode 05
+// Format tabel: “Nama” “Kelas” “soal1” “soal2” “soal3” “soal4” “soal5” “soal6” “soal7” “soal8” “soal9” “soal10” “Nilai”
 // Benar = 10, Salah = 0
 function generateExcelRekap(scores) {
   const headers = [
@@ -974,7 +1029,23 @@ function generateExcelRekap(scores) {
     "Nilai"
   ];
 
-  const rows = scores.map(s => {
+  const colWidths = [
+    { wch: 25 }, // Nama
+    { wch: 14 }, // Kelas
+    { wch: 9 },  // soal1
+    { wch: 9 },  // soal2
+    { wch: 9 },  // soal3
+    { wch: 9 },  // soal4
+    { wch: 9 },  // soal5
+    { wch: 9 },  // soal6
+    { wch: 9 },  // soal7
+    { wch: 9 },  // soal8
+    { wch: 9 },  // soal9
+    { wch: 9 },  // soal10
+    { wch: 12 }  // Nilai
+  ];
+
+  function mapScoreItemToRow(s) {
     let details = s.answers_detail;
     if (typeof details === "string") {
       try { details = JSON.parse(details); } catch(e){ details = []; }
@@ -999,43 +1070,57 @@ function generateExcelRekap(scores) {
       ...qScores,
       totalNilai
     ];
-  });
+  }
+
+  const SHEETS_CONFIG = [
+    { name: "Sheet 1 (Kode 21)", code: "21" },
+    { name: "Sheet 2 (Kode 17)", code: "17" },
+    { name: "Sheet 3 (Kode 07)", code: "07" },
+    { name: "Sheet 4 (Kode 20)", code: "20" },
+    { name: "Sheet 5 (Kode 05)", code: "05" }
+  ];
 
   const dateStr = new Date().toISOString().slice(0, 10);
   const fileName = `Rekap_Nilai_Siswa_Inverse_Archer_${dateStr}.xlsx`;
 
   if (typeof XLSX !== "undefined") {
-    const wsData = [headers, ...rows];
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-    // Format lebar kolom rapih
-    ws['!cols'] = [
-      { wch: 25 }, // Nama
-      { wch: 14 }, // Kelas
-      { wch: 9 },  // soal1
-      { wch: 9 },  // soal2
-      { wch: 9 },  // soal3
-      { wch: 9 },  // soal4
-      { wch: 9 },  // soal5
-      { wch: 9 },  // soal6
-      { wch: 9 },  // soal7
-      { wch: 9 },  // soal8
-      { wch: 9 },  // soal9
-      { wch: 9 },  // soal10
-      { wch: 12 }  // Nilai
-    ];
+    SHEETS_CONFIG.forEach(cfg => {
+      const sheetScores = scores.filter(s => {
+        const c = extractGameCode(s);
+        // Jika data lama belum ada kode, masukkan ke sheet pertama (21)
+        if (cfg.code === "21" && (!c || c === "21")) return true;
+        return c === cfg.code;
+      });
 
-    XLSX.utils.book_append_sheet(wb, ws, "Rekap Nilai Siswa");
+      const rows = sheetScores.map(mapScoreItemToRow);
+      const wsData = [headers, ...rows];
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      ws['!cols'] = colWidths;
+
+      XLSX.utils.book_append_sheet(wb, ws, cfg.name);
+    });
+
     XLSX.writeFile(wb, fileName);
     return true;
   } else {
     // Fallback CSV (UTF-8 BOM) jika SheetJS tidak tersedia
-    const csvContent = "\uFEFF" + [
-      headers.join(","),
-      ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(","))
-    ].join("\r\n");
+    let csvSections = [];
+    SHEETS_CONFIG.forEach(cfg => {
+      const sheetScores = scores.filter(s => {
+        const c = extractGameCode(s);
+        if (cfg.code === "21" && (!c || c === "21")) return true;
+        return c === cfg.code;
+      });
+      const rows = sheetScores.map(mapScoreItemToRow);
+      csvSections.push(`=== ${cfg.name} ===`);
+      csvSections.push(headers.join(","));
+      rows.forEach(r => csvSections.push(r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")));
+      csvSections.push("");
+    });
 
+    const csvContent = "\uFEFF" + csvSections.join("\r\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1056,31 +1141,34 @@ async function downloadNilaiSecretAction(statusEl) {
     const scores = await getAllStudentScores();
     if (!scores || scores.length === 0) {
       if (statusEl) statusEl.innerHTML = '<span style="color:#d97706">ℹ️ Belum ada nilai tersimpan.</span>';
-      const sample = confirm("Belum ada data nilai siswa yang tersimpan di sistem.\n\nApakah Anda ingin mengunduh contoh file Excel (format simulasi) untuk melihat kerapian format tabelnya?");
+      const sample = confirm("Belum ada data nilai siswa yang tersimpan di sistem.\n\nApakah Anda ingin mengunduh contoh file Excel (format simulasi 5 sheet) untuk melihat kerapian tabelnya?");
       if (sample) {
         const dummyScores = [
-          {
-            student_name: "Contoh Siswa A",
-            student_class: "X.1",
-            score: 90,
-            answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k !== 3 }))
-          },
-          {
-            student_name: "Contoh Siswa B",
-            student_class: "X.1",
-            score: 80,
-            answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k < 8 }))
-          }
+          // Sheet 1: Kode 21
+          { student_name: "Ahmad Rizki", student_class: "X.1", game_code: "21", score: 90, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k !== 3 })) },
+          { student_name: "Siti Nurhaliza", student_class: "X.1", game_code: "21", score: 80, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k < 8 })) },
+          // Sheet 2: Kode 17
+          { student_name: "Budi Santoso", student_class: "X.2", game_code: "17", score: 100, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: true })) },
+          { student_name: "Dewi Lestari", student_class: "X.2", game_code: "17", score: 70, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k < 7 })) },
+          // Sheet 3: Kode 07
+          { student_name: "Citra Ayu", student_class: "X.3", game_code: "07", score: 90, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k !== 1 })) },
+          { student_name: "Dimas Setiawan", student_class: "X.3", game_code: "07", score: 60, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k < 6 })) },
+          // Sheet 4: Kode 20
+          { student_name: "Eko Prasetyo", student_class: "X.4", game_code: "20", score: 80, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k % 2 === 0 })) },
+          { student_name: "Fani Rahmawati", student_class: "X.4", game_code: "20", score: 90, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k !== 8 })) },
+          // Sheet 5: Kode 05
+          { student_name: "Gilang Ramadhan", student_class: "X.5", game_code: "05", score: 80, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k < 8 })) },
+          { student_name: "Hana Pertiwi", student_class: "X.5", game_code: "05", score: 100, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: true })) }
         ];
         generateExcelRekap(dummyScores);
-        if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a">✓ Contoh format Excel berhasil diunduh.</span>';
+        if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a">✓ Contoh format Excel 5 Sheet berhasil diunduh.</span>';
       }
       return;
     }
 
     generateExcelRekap(scores);
     if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a">✓ Berhasil download rekap ${scores.length} siswa!</span>`;
-    alert(`File Excel rekap nilai berhasil diunduh untuk ${scores.length} siswa!`);
+    alert(`File Excel rekap nilai (5 Sheet per Kode) berhasil diunduh untuk ${scores.length} siswa!`);
   } catch (err) {
     console.error("Gagal unduh nilai:", err);
     if (statusEl) statusEl.innerHTML = '<span style="color:#dc2626">⚠️ Terjadi kesalahan saat mengunduh.</span>';
