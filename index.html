@@ -1195,11 +1195,12 @@ function updateSecretAdminVisibility() {
   if (cfgBtn) cfgBtn.style.display = isMatch ? "inline-flex" : "none";
 }
 
-// Mengambil semua nilai dari Supabase dan LocalStorage
+// Mengambil semua nilai dari Supabase (dan LocalStorage hanya jika Supabase offline)
 async function getAllStudentScores() {
   const list = [];
   const seen = new Set();
   let supabaseError = null;
+  let supabaseFetched = false;
 
   if (typeof initSupabase === "function") initSupabase();
 
@@ -1214,6 +1215,8 @@ async function getAllStudentScores() {
         supabaseError = error;
         console.warn("Supabase fetch notice:", error);
       } else if (Array.isArray(data)) {
+        supabaseFetched = true;
+        // Data dari Supabase adalah data resmi tunggal
         data.forEach(item => {
           const key = (item.id || "") + "_" + (item.student_name || "") + "_" + (item.student_class || "") + "_" + (item.created_at || "");
           if (!seen.has(key)) {
@@ -1221,6 +1224,14 @@ async function getAllStudentScores() {
             list.push(item);
           }
         });
+
+        // Jika database Supabase telah dikosongkan (0 data), bersihkan juga jejak riwayat pengujian lokal di browser
+        if (data.length === 0) {
+          try {
+            localStorage.removeItem("inverse_archer_all_scores");
+            localStorage.removeItem("inverse_archer_pending_score");
+          } catch(e) {}
+        }
       }
     } catch(err) {
       supabaseError = err;
@@ -1228,21 +1239,24 @@ async function getAllStudentScores() {
     }
   }
 
-  // Gabungkan dengan data cadangan di penyimpanan lokal browser
-  try {
-    const localScores = JSON.parse(localStorage.getItem("inverse_archer_all_scores") || "[]");
-    if (Array.isArray(localScores)) {
-      localScores.forEach(item => {
-        const key = (item.id || "") + "_" + (item.student_name || "") + "_" + (item.student_class || "") + "_" + (item.created_at || "");
-        if (!seen.has(key)) {
-          seen.add(key);
-          list.push(item);
-        }
-      });
-    }
-  } catch(e) {}
+  // JANGAN gabungkan LocalStorage jika Supabase berhasil diakses.
+  // LocalStorage HANYA digunakan jika Supabase belum terhubung atau koneksi database error (mode offline darurat).
+  if (!supabaseFetched && (!supabaseClient || supabaseError)) {
+    try {
+      const localScores = JSON.parse(localStorage.getItem("inverse_archer_all_scores") || "[]");
+      if (Array.isArray(localScores)) {
+        localScores.forEach(item => {
+          const key = (item.id || "") + "_" + (item.student_name || "") + "_" + (item.student_class || "") + "_" + (item.created_at || "");
+          if (!seen.has(key)) {
+            seen.add(key);
+            list.push(item);
+          }
+        });
+      }
+    } catch(e) {}
+  }
 
-  return { scores: list, supabaseError, isSupabaseConnected: !!supabaseClient };
+  return { scores: list, supabaseError, isSupabaseConnected: !!supabaseClient && supabaseFetched };
 }
 
 // Helper mengekstrak kode game dari rekaman siswa
@@ -1265,26 +1279,6 @@ function extractGameCode(item) {
   if (digits === "5") return "05";
   if (digits) return digits;
   return c;
-}
-
-function getDummyScores() {
-  return [
-    // Sheet 1: Kode 21
-    { student_name: "Ahmad Rizki", student_class: "X.1", game_code: "21", score: 90, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k !== 3 })) },
-    { student_name: "Siti Nurhaliza", student_class: "X.1", game_code: "21", score: 80, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k < 8 })) },
-    // Sheet 2: Kode 17
-    { student_name: "Budi Santoso", student_class: "X.2", game_code: "17", score: 100, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: true })) },
-    { student_name: "Dewi Lestari", student_class: "X.2", game_code: "17", score: 70, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k < 7 })) },
-    // Sheet 3: Kode 07
-    { student_name: "Citra Ayu", student_class: "X.3", game_code: "07", score: 90, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k !== 1 })) },
-    { student_name: "Dimas Setiawan", student_class: "X.3", game_code: "07", score: 60, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k < 6 })) },
-    // Sheet 4: Kode 20
-    { student_name: "Eko Prasetyo", student_class: "X.4", game_code: "20", score: 80, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k % 2 === 0 })) },
-    { student_name: "Fani Rahmawati", student_class: "X.4", game_code: "20", score: 90, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k !== 8 })) },
-    // Sheet 5: Kode 05
-    { student_name: "Gilang Ramadhan", student_class: "X.5", game_code: "05", score: 80, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k < 8 })) },
-    { student_name: "Hana Pertiwi", student_class: "X.5", game_code: "05", score: 100, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: true })) }
-  ];
 }
 
 // Generate file Excel 5 Sheet sesuai spesifikasi:
@@ -1443,15 +1437,10 @@ async function downloadNilaiSecretAction(statusEl) {
     }
 
     if (!scores || scores.length === 0) {
-      if (statusEl) statusEl.innerHTML = '<span style="color:#d97706">ℹ️ Belum ada nilai tersimpan.</span>';
-      const msg = res.isSupabaseConnected 
-        ? "Belum ada data nilai siswa yang tersimpan di sistem (Supabase maupun browser lokal).\n\nApakah Anda ingin mengunduh contoh format file Excel (format simulasi 5 sheet)?"
-        : "Supabase belum terhubung dan belum ada nilai lokal.\n\nKlik tombol '⚙️ Supabase' untuk menghubungkan URL & Anon Key.\n\nApakah Anda ingin mengunduh contoh format file Excel (format simulasi 5 sheet)?";
-      const sample = confirm(msg);
-      if (sample) {
-        generateExcelRekap(getDummyScores());
-        if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a">✓ Contoh format Excel 5 Sheet berhasil diunduh.</span>';
-      }
+      // Unduh template file Excel murni 5 sheet (hanya header kolom, 0 baris siswa)
+      generateExcelRekap([]);
+      if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a">✓ Database kosong. Rekap Excel kosong (5 Sheet, hanya header) berhasil diunduh.</span>';
+      alert("Database nilai saat ini KOSONG (0 data siswa).\n\nFile Excel berhasil diunduh dengan 5 Sheet format penilaian bersih (hanya baris judul header, tanpa data nama siswa).");
       return;
     }
 
