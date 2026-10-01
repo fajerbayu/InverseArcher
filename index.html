@@ -565,7 +565,7 @@ font-size:17px !important;line-height:1.5 !important}
 <button id="practiceBtn" class="secondary">SESI LATIHAN MEMANAH</button>
 </div>
 </div></section>
-<section id="game" class="screen"><div class="topbar"><span id="userTop">Pemain</span><span id="progress">Ronde 1/10</span><span id="timerTop">40:00</span><span id="scoreTop">Skor 0</span><button id="secretGameDownloadBtn" style="display:none;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;margin-left:auto;box-shadow:0 2px 6px rgba(22,163,74,0.3);">📥 Unduh Nilai (Excel)</button></div><div id="arena"><div class="cloud c1"></div><div class="cloud c2"></div><div class="cloud c3"></div>
+<section id="game" class="screen"><div class="topbar"><span id="userTop">Pemain</span><span id="progress">Ronde 1/10</span><span id="timerTop">40:00</span><span id="scoreTop">Skor 0</span><button id="secretGameDownloadBtn" style="display:none;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;margin-left:auto;box-shadow:0 2px 6px rgba(22,163,74,0.3);">📥 Unduh Nilai (Excel)</button><button id="secretGameClearBtn" style="display:none;background:#ef4444;color:#fff;border:none;border-radius:10px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;margin-left:6px;box-shadow:0 2px 6px rgba(239,68,68,0.3);">🗑️ Kosongkan Nilai</button><button id="secretGameConfigBtn" style="display:none;background:#475569;color:#fff;border:none;border-radius:10px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;margin-left:6px;">⚙️ Supabase</button></div><div id="arena"><div class="cloud c1"></div><div class="cloud c2"></div><div class="cloud c3"></div>
 <div class="bird bird1"><i></i><i></i></div>
 <div class="bird bird2"><i></i><i></i></div>
 <div class="bird bird3"><i></i><i></i></div>
@@ -632,6 +632,27 @@ font-size:17px !important;line-height:1.5 !important}
     <button id="codeErrorBackBtn" style="background:#2563eb;color:#fff;font-weight:700;width:100%;padding:13px;border-radius:12px;border:none;cursor:pointer;font-size:15px;box-shadow:0 4px 12px rgba(37,99,235,0.3);">
       ← Kembali untuk Mengisi Kode
     </button>
+  </div>
+</div>
+<div id="supabaseConfigModal" class="infoModal">
+  <div class="card infoPopup" style="max-width:440px;text-align:left;">
+    <h2 style="font-size:18px;text-align:center;margin-bottom:8px;color:#1e293b;">⚙️ Pengaturan Supabase</h2>
+    <div id="cfgStatusMsg" style="font-size:12px;font-weight:700;padding:8px 10px;border-radius:8px;background:#f1f5f9;margin-bottom:12px;text-align:center;">
+      Status: Memeriksa koneksi...
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:#334155;">SUPABASE PROJECT URL</label>
+      <input id="cfgSupabaseUrl" placeholder="https://xyzcompany.supabase.co" style="width:100%;padding:10px 12px;font-size:13px;border:1px solid #cbd5e1;border-radius:8px;box-sizing:border-box;">
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:#334155;">SUPABASE ANON PUBLIC KEY</label>
+      <input id="cfgSupabaseKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." style="width:100%;padding:10px 12px;font-size:13px;border:1px solid #cbd5e1;border-radius:8px;box-sizing:border-box;">
+    </div>
+    <div style="display:flex;gap:8px;flex-direction:column;">
+      <button id="cfgSaveBtn" style="background:#2563eb;color:#fff;font-weight:700;padding:10px;border-radius:10px;border:none;cursor:pointer;">💾 Simpan & Uji Koneksi</button>
+      <button id="cfgClearBtn" style="background:#fee2e2;color:#dc2626;font-weight:700;padding:10px;border-radius:10px;border:none;cursor:pointer;">🗑️ Kosongkan Seluruh Data Nilai</button>
+      <button id="cfgCloseBtn" class="secondary" style="padding:9px;border-radius:10px;border:1px solid #cbd5e1;cursor:pointer;">Tutup</button>
+    </div>
   </div>
 </div>
 <div id="modal"><div class="card question"><div class="tiny" id="qnum"></div><h2 id="qtext"></h2><div id="opts"></div><div class="feedback" id="feedback"></div><button id="next">Lanjut</button></div></div>
@@ -1165,15 +1186,20 @@ function updateSecretAdminVisibility() {
   const isMatch = isZahrahUnsika();
   const menuBtn = document.getElementById("secretMenuDownloadBtn");
   const gameBtn = document.getElementById("secretGameDownloadBtn");
+  const clearBtn = document.getElementById("secretGameClearBtn");
+  const cfgBtn = document.getElementById("secretGameConfigBtn");
 
   if (menuBtn) menuBtn.style.display = isMatch ? "block" : "none";
   if (gameBtn) gameBtn.style.display = isMatch ? "inline-flex" : "none";
+  if (clearBtn) clearBtn.style.display = isMatch ? "inline-flex" : "none";
+  if (cfgBtn) cfgBtn.style.display = isMatch ? "inline-flex" : "none";
 }
 
 // Mengambil semua nilai dari Supabase dan LocalStorage
 async function getAllStudentScores() {
   const list = [];
   const seen = new Set();
+  let supabaseError = null;
 
   if (typeof initSupabase === "function") initSupabase();
 
@@ -1184,7 +1210,10 @@ async function getAllStudentScores() {
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (!error && Array.isArray(data)) {
+      if (error) {
+        supabaseError = error;
+        console.warn("Supabase fetch notice:", error);
+      } else if (Array.isArray(data)) {
         data.forEach(item => {
           const key = (item.id || "") + "_" + (item.student_name || "") + "_" + (item.student_class || "") + "_" + (item.created_at || "");
           if (!seen.has(key)) {
@@ -1192,15 +1221,14 @@ async function getAllStudentScores() {
             list.push(item);
           }
         });
-      } else if (error) {
-        console.warn("Supabase fetch notice:", error);
       }
     } catch(err) {
+      supabaseError = err;
       console.warn("Supabase fetch exception:", err);
     }
   }
 
-  // Gabungkan dengan penyimpanan lokal
+  // Gabungkan dengan data cadangan di penyimpanan lokal browser
   try {
     const localScores = JSON.parse(localStorage.getItem("inverse_archer_all_scores") || "[]");
     if (Array.isArray(localScores)) {
@@ -1214,11 +1242,12 @@ async function getAllStudentScores() {
     }
   } catch(e) {}
 
-  return list;
+  return { scores: list, supabaseError, isSupabaseConnected: !!supabaseClient };
 }
 
 // Helper mengekstrak kode game dari rekaman siswa
 function extractGameCode(item) {
+  if (!item) return "21";
   let c = (item.game_code || "").toString().trim();
   if (!c && item.answers_detail) {
     let det = item.answers_detail;
@@ -1226,23 +1255,41 @@ function extractGameCode(item) {
       try { det = JSON.parse(det); } catch(e){}
     }
     if (Array.isArray(det)) {
-      const meta = det.find(x => x && x.is_meta);
+      const meta = det.find(x => x && typeof x === "object" && x.is_meta);
       if (meta && meta.game_code) c = meta.game_code.toString().trim();
     }
   }
-  if (c === "7") c = "07";
-  if (c === "5") c = "05";
+  // Ambil hanya angka untuk normalisasi (misal "Kode 21" -> "21")
+  const digits = c.replace(/[^0-9]/g, "");
+  if (digits === "7") return "07";
+  if (digits === "5") return "05";
+  if (digits) return digits;
   return c;
 }
 
+function getDummyScores() {
+  return [
+    // Sheet 1: Kode 21
+    { student_name: "Ahmad Rizki", student_class: "X.1", game_code: "21", score: 90, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k !== 3 })) },
+    { student_name: "Siti Nurhaliza", student_class: "X.1", game_code: "21", score: 80, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k < 8 })) },
+    // Sheet 2: Kode 17
+    { student_name: "Budi Santoso", student_class: "X.2", game_code: "17", score: 100, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: true })) },
+    { student_name: "Dewi Lestari", student_class: "X.2", game_code: "17", score: 70, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k < 7 })) },
+    // Sheet 3: Kode 07
+    { student_name: "Citra Ayu", student_class: "X.3", game_code: "07", score: 90, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k !== 1 })) },
+    { student_name: "Dimas Setiawan", student_class: "X.3", game_code: "07", score: 60, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k < 6 })) },
+    // Sheet 4: Kode 20
+    { student_name: "Eko Prasetyo", student_class: "X.4", game_code: "20", score: 80, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k % 2 === 0 })) },
+    { student_name: "Fani Rahmawati", student_class: "X.4", game_code: "20", score: 90, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k !== 8 })) },
+    // Sheet 5: Kode 05
+    { student_name: "Gilang Ramadhan", student_class: "X.5", game_code: "05", score: 80, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k < 8 })) },
+    { student_name: "Hana Pertiwi", student_class: "X.5", game_code: "05", score: 100, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: true })) }
+  ];
+}
+
 // Generate file Excel 5 Sheet sesuai spesifikasi:
-// Sheet 1: Kode 21
-// Sheet 2: Kode 17
-// Sheet 3: Kode 07
-// Sheet 4: Kode 20
-// Sheet 5: Kode 05
+// Sheet 1: Kode 21 | Sheet 2: Kode 17 | Sheet 3: Kode 07 | Sheet 4: Kode 20 | Sheet 5: Kode 05
 // Format tabel: “Nama” “Kelas” “soal1” “soal2” “soal3” “soal4” “soal5” “soal6” “soal7” “soal8” “soal9” “soal10” “Nilai”
-// Benar = 10, Salah = 0
 function generateExcelRekap(scores) {
   const headers = [
     "Nama", "Kelas",
@@ -1276,11 +1323,32 @@ function generateExcelRekap(scores) {
 
     const qScores = [];
     for (let q = 1; q <= 10; q++) {
-      const qItem = details.find(d => Number(d.question_num) === q) || details[q - 1];
-      if (qItem && (qItem.is_correct === true || qItem.is_correct === 1 || qItem.is_correct === "true")) {
-        qScores.push(10);
-      } else {
-        qScores.push(0);
+      let isCorrect = false;
+      // Safe navigation: pastikan objek valid dan hindari crash jika ada elemen null
+      const qItem = details.find(d => d && typeof d === "object" && Number(d.question_num) === q) || 
+                    (details[q - 1] && typeof details[q - 1] === "object" && !details[q - 1].is_meta ? details[q - 1] : null);
+
+      if (qItem) {
+        if (qItem.is_correct === true || qItem.is_correct === 1 || qItem.is_correct === "true" || qItem.score === 10) {
+          isCorrect = true;
+        }
+      } else if (typeof details[q - 1] === "number") {
+        isCorrect = details[q - 1] === 10 || details[q - 1] === 1;
+      } else if (typeof details[q - 1] === "boolean") {
+        isCorrect = details[q - 1] === true;
+      }
+
+      qScores.push(isCorrect ? 10 : 0);
+    }
+
+    // Jika answers_detail tidak diisi (misal data diinput langsung di Supabase Table Editor tanpa JSON detail),
+    // estimasikan rincian soal berdasarkan correct_count atau score agar kolom soal1..soal10 tidak bernilai 0 semua!
+    const totalCorrectFromCount = Number(s.correct_count) || (s.score != null ? Math.round(Number(s.score) / 10) : 0);
+    const currentCorrectFromQuestions = qScores.filter(v => v === 10).length;
+
+    if (currentCorrectFromQuestions === 0 && totalCorrectFromCount > 0) {
+      for (let idx = 0; idx < Math.min(totalCorrectFromCount, 10); idx++) {
+        qScores[idx] = 10;
       }
     }
 
@@ -1311,9 +1379,12 @@ function generateExcelRekap(scores) {
     SHEETS_CONFIG.forEach(cfg => {
       const sheetScores = scores.filter(s => {
         const c = extractGameCode(s);
-        // Jika data lama belum ada kode, masukkan ke sheet pertama (21)
-        if (cfg.code === "21" && (!c || c === "21")) return true;
-        return c === cfg.code;
+        if (c === cfg.code) return true;
+        // Sheet 1 menampung data kode 21, kode kosong, atau kode lain yang belum terdaftar agar tidak ada data yang hilang
+        if (cfg.code === "21") {
+          return !c || c === "21" || !["17", "07", "20", "05"].includes(c);
+        }
+        return false;
       });
 
       const rows = sheetScores.map(mapScoreItemToRow);
@@ -1332,8 +1403,11 @@ function generateExcelRekap(scores) {
     SHEETS_CONFIG.forEach(cfg => {
       const sheetScores = scores.filter(s => {
         const c = extractGameCode(s);
-        if (cfg.code === "21" && (!c || c === "21")) return true;
-        return c === cfg.code;
+        if (c === cfg.code) return true;
+        if (cfg.code === "21") {
+          return !c || c === "21" || !["17", "07", "20", "05"].includes(c);
+        }
+        return false;
       });
       const rows = sheetScores.map(mapScoreItemToRow);
       csvSections.push(`=== ${cfg.name} ===`);
@@ -1360,29 +1434,22 @@ async function downloadNilaiSecretAction(statusEl) {
   if (statusEl) statusEl.innerHTML = '<span style="color:#2563eb">⏳ Sedang mengambil data nilai...</span>';
 
   try {
-    const scores = await getAllStudentScores();
+    const res = await getAllStudentScores();
+    const scores = res.scores || [];
+
+    if (res.supabaseError) {
+      console.warn("Supabase fetch notice:", res.supabaseError);
+      alert(`Catatan Koneksi Supabase:\n${res.supabaseError.message || "Gagal membaca database"}\n\nJika ini masalah permission (RLS) di Supabase, silakan jalankan query SQL berikut di Supabase SQL Editor:\nCREATE POLICY "Allow read student scores" ON student_scores FOR SELECT TO public USING (true);\n\nSistem tetap mengekspor data yang tersedia.`);
+    }
+
     if (!scores || scores.length === 0) {
       if (statusEl) statusEl.innerHTML = '<span style="color:#d97706">ℹ️ Belum ada nilai tersimpan.</span>';
-      const sample = confirm("Belum ada data nilai siswa yang tersimpan di sistem.\n\nApakah Anda ingin mengunduh contoh file Excel (format simulasi 5 sheet) untuk melihat kerapian tabelnya?");
+      const msg = res.isSupabaseConnected 
+        ? "Belum ada data nilai siswa yang tersimpan di sistem (Supabase maupun browser lokal).\n\nApakah Anda ingin mengunduh contoh format file Excel (format simulasi 5 sheet)?"
+        : "Supabase belum terhubung dan belum ada nilai lokal.\n\nKlik tombol '⚙️ Supabase' untuk menghubungkan URL & Anon Key.\n\nApakah Anda ingin mengunduh contoh format file Excel (format simulasi 5 sheet)?";
+      const sample = confirm(msg);
       if (sample) {
-        const dummyScores = [
-          // Sheet 1: Kode 21
-          { student_name: "Ahmad Rizki", student_class: "X.1", game_code: "21", score: 90, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k !== 3 })) },
-          { student_name: "Siti Nurhaliza", student_class: "X.1", game_code: "21", score: 80, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k < 8 })) },
-          // Sheet 2: Kode 17
-          { student_name: "Budi Santoso", student_class: "X.2", game_code: "17", score: 100, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: true })) },
-          { student_name: "Dewi Lestari", student_class: "X.2", game_code: "17", score: 70, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k < 7 })) },
-          // Sheet 3: Kode 07
-          { student_name: "Citra Ayu", student_class: "X.3", game_code: "07", score: 90, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k !== 1 })) },
-          { student_name: "Dimas Setiawan", student_class: "X.3", game_code: "07", score: 60, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k < 6 })) },
-          // Sheet 4: Kode 20
-          { student_name: "Eko Prasetyo", student_class: "X.4", game_code: "20", score: 80, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k % 2 === 0 })) },
-          { student_name: "Fani Rahmawati", student_class: "X.4", game_code: "20", score: 90, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k !== 8 })) },
-          // Sheet 5: Kode 05
-          { student_name: "Gilang Ramadhan", student_class: "X.5", game_code: "05", score: 80, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: k < 8 })) },
-          { student_name: "Hana Pertiwi", student_class: "X.5", game_code: "05", score: 100, answers_detail: Array.from({length: 10}, (_, k) => ({ question_num: k + 1, is_correct: true })) }
-        ];
-        generateExcelRekap(dummyScores);
+        generateExcelRekap(getDummyScores());
         if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a">✓ Contoh format Excel 5 Sheet berhasil diunduh.</span>';
       }
       return;
@@ -1396,6 +1463,144 @@ async function downloadNilaiSecretAction(statusEl) {
     if (statusEl) statusEl.innerHTML = '<span style="color:#dc2626">⚠️ Terjadi kesalahan saat mengunduh.</span>';
     alert("Gagal mengunduh file Excel: " + err.message);
   }
+}
+
+// Fungsi Mengosongkan Seluruh Data Nilai di Supabase dan LocalStorage
+async function clearAllStudentScores() {
+  const confirm1 = confirm("⚠️ PERINGATAN KOSONGKAN DATA!\n\nApakah Anda yakin ingin MENGHAPUS SEMUA data nilai siswa di Supabase dan LocalStorage browser?\n\nTindakan ini permanen dan tidak dapat dibatalkan.");
+  if (!confirm1) return;
+
+  const confirm2 = confirm("Konfirmasi Terakhir:\nKlik OK untuk mengosongkan semua data nilai sekarang.");
+  if (!confirm2) return;
+
+  let supabaseDeleted = false;
+  let supabaseErrMsg = null;
+
+  if (typeof initSupabase === "function") initSupabase();
+
+  if (supabaseClient) {
+    try {
+      const { error } = await supabaseClient
+        .from("student_scores")
+        .delete()
+        .neq("id", "00000000-0000-0000-0000-000000000000");
+
+      if (error) {
+        supabaseErrMsg = error.message;
+        console.warn("Gagal hapus Supabase:", error);
+      } else {
+        supabaseDeleted = true;
+      }
+    } catch(err) {
+      supabaseErrMsg = err.message;
+      console.warn("Exception hapus Supabase:", err);
+    }
+  }
+
+  // Kosongkan riwayat lokal
+  try {
+    localStorage.removeItem("inverse_archer_all_scores");
+    localStorage.removeItem("inverse_archer_pending_score");
+  } catch(e) {}
+
+  if (supabaseDeleted) {
+    alert("✓ Seluruh data nilai siswa di Supabase dan LocalStorage berhasil dikosongkan!");
+  } else if (supabaseClient && supabaseErrMsg) {
+    alert(`⚠️ Data nilai di browser lokal telah dihapus, namun Supabase mengembalikan pesan:\n${supabaseErrMsg}\n\nJika terhalang izin RLS di Supabase, silakan buka menu SQL Editor di Supabase Dashboard dan jalankan:\nTRUNCATE TABLE student_scores;\natau buat policy DELETE:
+CREATE POLICY "Allow public delete" ON student_scores FOR DELETE TO public USING (true);`);
+  } else {
+    alert("✓ Data nilai di browser lokal telah dikosongkan!\n(Supabase belum terhubung. Jika tabel di Supabase masih ada data, silakan jalankan query TRUNCATE TABLE student_scores; di SQL Editor Supabase).");
+  }
+
+  const modal = document.getElementById("supabaseConfigModal");
+  if (modal) modal.classList.remove("show");
+}
+
+function openSupabaseConfigModal() {
+  const modal = document.getElementById("supabaseConfigModal");
+  if (!modal) return;
+
+  const cfg = (typeof getActiveSupabaseConfig === "function") ? getActiveSupabaseConfig() : { url: "", anonKey: "" };
+  const urlInp = document.getElementById("cfgSupabaseUrl");
+  const keyInp = document.getElementById("cfgSupabaseKey");
+  const statusEl = document.getElementById("cfgStatusMsg");
+
+  if (urlInp) urlInp.value = (!cfg.url.includes("GANTI_DENGAN")) ? cfg.url : "";
+  if (keyInp) keyInp.value = (!cfg.anonKey.includes("GANTI_DENGAN")) ? cfg.anonKey : "";
+
+  if (statusEl) {
+    if (supabaseClient) {
+      statusEl.innerHTML = '<span style="color:#16a34a">✓ Terhubung ke Supabase</span>';
+    } else {
+      statusEl.innerHTML = '<span style="color:#d97706">⚠️ Belum terhubung ke Supabase</span>';
+    }
+  }
+
+  modal.classList.add("show");
+}
+
+const cfgCloseBtn = document.getElementById("cfgCloseBtn");
+if (cfgCloseBtn) {
+  cfgCloseBtn.onclick = () => {
+    const modal = document.getElementById("supabaseConfigModal");
+    if (modal) modal.classList.remove("show");
+  };
+}
+
+const cfgClearBtn = document.getElementById("cfgClearBtn");
+if (cfgClearBtn) {
+  cfgClearBtn.onclick = () => clearAllStudentScores();
+}
+
+const secretGameClearBtn = document.getElementById("secretGameClearBtn");
+if (secretGameClearBtn) {
+  secretGameClearBtn.onclick = () => clearAllStudentScores();
+}
+
+const secretGameConfigBtn = document.getElementById("secretGameConfigBtn");
+if (secretGameConfigBtn) {
+  secretGameConfigBtn.onclick = () => openSupabaseConfigModal();
+}
+
+const cfgSaveBtn = document.getElementById("cfgSaveBtn");
+if (cfgSaveBtn) {
+  cfgSaveBtn.onclick = async () => {
+    const urlInp = document.getElementById("cfgSupabaseUrl");
+    const keyInp = document.getElementById("cfgSupabaseKey");
+    const statusEl = document.getElementById("cfgStatusMsg");
+
+    const newUrl = urlInp ? urlInp.value.trim() : "";
+    const newKey = keyInp ? keyInp.value.trim() : "";
+
+    if (!newUrl || !newKey) {
+      alert("Silakan masukkan SUPABASE URL dan ANON KEY terlebih dahulu.");
+      return;
+    }
+
+    if (statusEl) statusEl.innerHTML = '<span style="color:#2563eb">⏳ Menguji koneksi ke Supabase...</span>';
+
+    try {
+      localStorage.setItem("inverse_archer_supabase_config", JSON.stringify({ url: newUrl, anonKey: newKey }));
+      initSupabase();
+
+      if (!supabaseClient) throw new Error("Gagal menginisialisasi client Supabase dengan URL yang dimasukkan.");
+
+      const { data, error } = await supabaseClient.from("student_scores").select("id", { count: "exact", head: true });
+      if (error) {
+        if (error.code === "42P01") {
+          throw new Error("Tabel 'student_scores' belum dibuat di Supabase. Silakan jalankan script SQL pembuatan tabel di Supabase SQL Editor.");
+        }
+        throw error;
+      }
+
+      if (statusEl) statusEl.innerHTML = '<span style="color:#16a34a">✓ Koneksi Berhasil! Database Supabase siap digunakan.</span>';
+      alert("✓ Konfigurasi Supabase berhasil disimpan dan teruji aktif!");
+    } catch(err) {
+      console.error("Uji koneksi gagal:", err);
+      if (statusEl) statusEl.innerHTML = `<span style="color:#dc2626">⚠️ Gagal: ${err.message}</span>`;
+      alert("Gagal menghubungkan ke Supabase:\n" + err.message + "\n\nPastikan URL dan Anon Key benar serta tabel student_scores sudah dibuat.");
+    }
+  };
 }
 
 // Pasang handler tombol download nilai rahasia

@@ -429,9 +429,10 @@ tr:hover td { background: #f8fafc; }
           <option value="name">Nama: A - Z</option>
         </select>
       </div>
-      <div style="display:flex; gap:8px">
+      <div style="display:flex; gap:8px; flex-wrap:wrap">
         <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh</button>
         <button id="exportCsvBtn" class="btn btn-success">📥 Download Excel (CSV)</button>
+        <button id="clearAllScoresBtn" class="btn btn-danger">🗑️ Kosongkan Semua Nilai</button>
       </div>
     </div>
 
@@ -797,6 +798,24 @@ window.deleteScore = async function(id, name) {
     alert("Gagal menghapus data: " + err.message);
   }
 };
+
+// Kosongkan Semua Data Nilai Siswa
+document.getElementById("clearAllScoresBtn").addEventListener("click", async () => {
+  if (!confirm("⚠️ PERINGATAN!\n\nApakah Anda yakin ingin MENGHAPUS SEMUA data nilai siswa di Supabase?\nTindakan ini permanen dan tidak dapat dibatalkan.")) return;
+  if (!confirm("Konfirmasi Terakhir:\nKlik OK untuk menghapus semua data nilai sekarang.")) return;
+
+  try {
+    const { error } = await supabaseClient.from("student_scores").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    if (error) throw error;
+    allScores = [];
+    filteredScores = [];
+    applyFilterAndRender();
+    alert("✓ Seluruh data nilai siswa di database Supabase berhasil dikosongkan!");
+  } catch (err) {
+    alert("Gagal mengosongkan data nilai: " + err.message + "\n\nJika terhalang izin RLS di Supabase, silakan buka menu SQL Editor di Supabase Dashboard dan jalankan:\nTRUNCATE TABLE student_scores;\natau buat policy DELETE:
+CREATE POLICY \"Allow public delete\" ON student_scores FOR DELETE TO public USING (true);");
+  }
+});
 
 // Export ke Excel / CSV
 document.getElementById("exportCsvBtn").addEventListener("click", () => {
