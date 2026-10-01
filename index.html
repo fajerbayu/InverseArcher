@@ -1076,9 +1076,13 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
   pendingScorePayload = {
     submission_id: sessionSubmissionId,
     student_name: player || "Tanpa Nama",
+    nama: player || "Tanpa Nama",
     student_class: kelas || "-",
+    kelas: kelas || "-",
     game_code: codeToSave,
+    kode: codeToSave,
     score: finalScore,
+    nilai: finalScore,
     correct_count: correctN,
     wrong_count: wrongN,
     medal: medalName || "-",
@@ -1104,7 +1108,7 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
   if (typeof initSupabase === "function") initSupabase();
 
   if (!supabaseClient) {
-    statusEl.innerHTML = '<span style="color:#16a34a">✓ Nilai berhasil dicatat dan disimpan di sistem (1x Selesai).</span>';
+    statusEl.innerHTML = '<span style="color:#d97706">⚠️ Nilai tersimpan di perangkat lokal (Server Cloud belum terhubung).<br><span style="font-size:12px;color:#64748b;">(Nilai siap diekspor oleh Guru di perangkat ini. Untuk siswa HP lain, pastikan URL & Key Supabase telah dipasang di config.js).</span></span>';
     return;
   }
 
@@ -1112,43 +1116,59 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
     const res = await insertScoreWithFallbacks(pendingScorePayload);
     if (res && res.error) throw res.error;
 
-    statusEl.innerHTML = '<span style="color:#16a34a">✓ Nilai berhasil dikirim & tersimpan di database Guru (1x Selesai)</span>';
+    statusEl.innerHTML = '<span style="color:#16a34a">✓ Nilai BERHASIL terkirim & tersimpan di database Cloud Guru! (1x Selesai)</span>';
     try { localStorage.removeItem("inverse_archer_pending_score"); } catch(e){}
   } catch (err) {
     console.error("Gagal simpan nilai ke Supabase:", err);
     try {
       localStorage.setItem("inverse_archer_pending_score", JSON.stringify(pendingScorePayload));
     } catch(e){}
-    statusEl.innerHTML = `<span style="color:#16a34a">✓ Nilai berhasil dicatat dan tersimpan di sistem (1x Selesai).<br><span style="font-size:12px;color:#64748b;">(Tersimpan lokal: ${err.message || "Koneksi cloud offline"}). Siap diunduh oleh Guru.</span></span>`;
+    statusEl.innerHTML = `<span style="color:#d97706">⚠️ Nilai tersimpan di memori perangkat lokal.<br><span style="font-size:12px;color:#64748b;">(Kendala Cloud: ${err.message || "Offline"}). Nilai tetap aman dan dapat diunduh oleh Guru di perangkat ini.</span></span>`;
     if (retryBtn) retryBtn.style.display = "block";
   }
 }
 
-// Helper pengiriman nilai ke Supabase dengan toleransi skema multi-tier (anti-gagal jika kolom di Supabase berbeda)
+// Helper pengiriman nilai ke Supabase dengan toleransi skema multi-tier (mendukung kolom Bahasa Inggris maupun Indonesia)
 async function insertScoreWithFallbacks(payload) {
   if (!supabaseClient) return { error: new Error("Supabase belum diinisialisasi") };
 
   const attemptPayload = { ...payload };
   delete attemptPayload.submission_id;
 
-  // Tier 1: Kirim data lengkap
+  // Tier 1: Kirim data lengkap standar Bahasa Inggris
   let res = await supabaseClient.from("student_scores").insert([attemptPayload]);
   if (!res.error) return res;
 
-  console.warn("Insert Tier 1 gagal:", res.error.message);
+  console.warn("Insert Tier 1 (English) notice:", res.error.message);
 
-  // Tier 2: Hapus kolom opsional yang mungkin belum ada di tabel Supabase
+  // Tier 1b: Coba skema bahasa Indonesia jika tabel Supabase dibuat dengan nama kolom lokal (nama, kelas, kode, nilai)
+  const indoPayload = {
+    nama: payload.student_name || "Tanpa Nama",
+    kelas: payload.student_class || "-",
+    kode: payload.game_code || "21",
+    nilai: Number(payload.score) || 0
+  };
+  let resIndo = await supabaseClient.from("student_scores").insert([indoPayload]);
+  if (!resIndo.error) return resIndo;
+
+  console.warn("Insert Tier 1b (Indonesian) notice:", resIndo.error.message);
+
+  // Tier 2: Hapus kolom opsional yang mungkin belum dibuat di tabel Supabase
   const tier2Payload = { ...attemptPayload };
   delete tier2Payload.game_code;
+  delete tier2Payload.kode;
   delete tier2Payload.answers_detail;
   delete tier2Payload.time_spent_seconds;
   delete tier2Payload.medal;
+  delete tier2Payload.nama;
+  delete tier2Payload.kelas;
+  delete tier2Payload.nilai;
   res = await supabaseClient.from("student_scores").insert([tier2Payload]);
   if (!res.error) return res;
 
-  console.warn("Insert Tier 2 gagal:", res.error.message);
+  console.warn("Insert Tier 2 notice:", res.error.message);
 
-  // Tier 3: Kolom standar paling dasar
+  // Tier 3: Kolom standar paling dasar (student_name, student_class, score)
   const tier3Payload = {
     student_name: payload.student_name || "Tanpa Nama",
     student_class: payload.student_class || "-",
@@ -1302,10 +1322,10 @@ async function getAllStudentScores() {
   return { scores: list, supabaseError, isSupabaseConnected: !!supabaseClient && supabaseFetched };
 }
 
-// Helper mengekstrak kode game dari rekaman siswa
+// Helper mengekstrak kode game dari rekaman siswa (mendukung berbagai format kolom)
 function extractGameCode(item) {
   if (!item) return "21";
-  let c = (item.game_code || "").toString().trim();
+  let c = (item.game_code || item.kode || item.kode_game || item.Kode || item.code || "").toString().trim();
   if (!c && item.answers_detail) {
     let det = item.answers_detail;
     if (typeof det === "string") {
@@ -1313,7 +1333,7 @@ function extractGameCode(item) {
     }
     if (Array.isArray(det)) {
       const meta = det.find(x => x && typeof x === "object" && x.is_meta);
-      if (meta && meta.game_code) c = meta.game_code.toString().trim();
+      if (meta && (meta.game_code || meta.kode)) c = (meta.game_code || meta.kode).toString().trim();
     }
   }
   // Ambil hanya angka untuk normalisasi (misal "Kode 21" -> "21")
@@ -1321,7 +1341,7 @@ function extractGameCode(item) {
   if (digits === "7") return "07";
   if (digits === "5") return "05";
   if (digits) return digits;
-  return c;
+  return c || "21";
 }
 
 // Generate file Excel 5 Sheet sesuai spesifikasi:
@@ -1352,6 +1372,9 @@ function generateExcelRekap(scores) {
   ];
 
   function mapScoreItemToRow(s) {
+    const studentName = s.student_name || s.nama || s.nama_siswa || s.Nama || s.name || "Tanpa Nama";
+    const studentClass = s.student_class || s.kelas || s.Kelas || s.class || "-";
+
     let details = s.answers_detail;
     if (typeof details === "string") {
       try { details = JSON.parse(details); } catch(e){ details = []; }
@@ -1361,26 +1384,36 @@ function generateExcelRekap(scores) {
     const qScores = [];
     for (let q = 1; q <= 10; q++) {
       let isCorrect = false;
-      // Safe navigation: pastikan objek valid dan hindari crash jika ada elemen null
-      const qItem = details.find(d => d && typeof d === "object" && Number(d.question_num) === q) || 
-                    (details[q - 1] && typeof details[q - 1] === "object" && !details[q - 1].is_meta ? details[q - 1] : null);
 
-      if (qItem) {
-        if (qItem.is_correct === true || qItem.is_correct === 1 || qItem.is_correct === "true" || qItem.score === 10) {
+      // Cek apakah tabel SQL memiliki kolom langsung 'soal1'..'soal10'
+      const directKey = "soal" + q;
+      const directVal = s[directKey] != null ? s[directKey] : (s["soal_" + q] != null ? s["soal_" + q] : s["q" + q]);
+      if (directVal != null) {
+        if (directVal === 10 || directVal === "10" || directVal === true || directVal === "true" || directVal === 1) {
           isCorrect = true;
         }
-      } else if (typeof details[q - 1] === "number") {
-        isCorrect = details[q - 1] === 10 || details[q - 1] === 1;
-      } else if (typeof details[q - 1] === "boolean") {
-        isCorrect = details[q - 1] === true;
+      } else {
+        // Safe navigation dari answers_detail JSON
+        const qItem = details.find(d => d && typeof d === "object" && Number(d.question_num) === q) || 
+                      (details[q - 1] && typeof details[q - 1] === "object" && !details[q - 1].is_meta ? details[q - 1] : null);
+
+        if (qItem) {
+          if (qItem.is_correct === true || qItem.is_correct === 1 || qItem.is_correct === "true" || qItem.score === 10) {
+            isCorrect = true;
+          }
+        } else if (typeof details[q - 1] === "number") {
+          isCorrect = details[q - 1] === 10 || details[q - 1] === 1;
+        } else if (typeof details[q - 1] === "boolean") {
+          isCorrect = details[q - 1] === true;
+        }
       }
 
       qScores.push(isCorrect ? 10 : 0);
     }
 
-    // Jika answers_detail tidak diisi (misal data diinput langsung di Supabase Table Editor tanpa JSON detail),
-    // estimasikan rincian soal berdasarkan correct_count atau score agar kolom soal1..soal10 tidak bernilai 0 semua!
-    const totalCorrectFromCount = Number(s.correct_count) || (s.score != null ? Math.round(Number(s.score) / 10) : 0);
+    // Jika answers_detail tidak diisi, estimasikan rincian soal berdasarkan correct_count atau score/nilai
+    const rawScore = s.score != null ? Number(s.score) : (s.nilai != null ? Number(s.nilai) : (s.Nilai != null ? Number(s.Nilai) : null));
+    const totalCorrectFromCount = Number(s.correct_count) || (rawScore != null ? Math.round(rawScore / 10) : 0);
     const currentCorrectFromQuestions = qScores.filter(v => v === 10).length;
 
     if (currentCorrectFromQuestions === 0 && totalCorrectFromCount > 0) {
@@ -1389,11 +1422,11 @@ function generateExcelRekap(scores) {
       }
     }
 
-    const totalNilai = s.score != null ? Number(s.score) : qScores.reduce((acc, curr) => acc + curr, 0);
+    const totalNilai = rawScore != null ? rawScore : qScores.reduce((acc, curr) => acc + curr, 0);
 
     return [
-      s.student_name || "Tanpa Nama",
-      s.student_class || "-",
+      studentName,
+      studentClass,
       ...qScores,
       totalNilai
     ];
@@ -1489,7 +1522,7 @@ async function downloadNilaiSecretAction(statusEl) {
 
     generateExcelRekap(scores);
     if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a">✓ Berhasil download rekap ${scores.length} siswa!</span>`;
-    alert(`File Excel rekap nilai (5 Sheet per Kode) berhasil diunduh untuk ${scores.length} siswa!`);
+    alert(`File Excel rekap nilai (5 Sheet per Kode) berhasil diunduh untuk ${scores.length} siswa!\n\n💡 CATATAN PENTING:\nFile Excel ini memuat 5 Sheet (tab lembar kerja di bagian bawah layar Excel):\n• Sheet 1: Kode 21\n• Sheet 2: Kode 17\n• Sheet 3: Kode 07\n• Sheet 4: Kode 20\n• Sheet 5: Kode 05\n\nJika nama siswa belum terlihat di Sheet 1, silakan klik tab Sheet 2/3/4/5 di bagian bawah jendela Excel sesuai kode yang dimasukkan siswa.`);
   } catch (err) {
     console.error("Gagal unduh nilai:", err);
     if (statusEl) statusEl.innerHTML = '<span style="color:#dc2626">⚠️ Terjadi kesalahan saat mengunduh.</span>';
