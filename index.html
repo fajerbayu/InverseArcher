@@ -49,7 +49,7 @@ button{font-weight:850;background:var(--yellow);box-shadow:0 5px 0 #d5a936;curso
 #modal{display:none;position:absolute;inset:0;background:#1738499c;z-index:30;padding:17px;align-items:center;justify-content:center}
 #modal.show{display:flex}.question{width:100%;max-height:92dvh;overflow:auto}
 .option{background:#f1f5f6;box-shadow:none;text-align:left;border:3px solid transparent;font-weight:650}.option.correct{background:#d9f5df;border-color:#42aa64}.option.wrong{background:#ffe0e2;border-color:#e9545d}.option:disabled{color:var(--ink);opacity:1}
-.feedback{font-weight:900;text-align:center;min-height:26px;margin:8px}.good{color:#309653}.bad{color:#d74750}#next{display:none;background:#69c98a;box-shadow:0 5px 0 #409d61}
+.feedback{font-weight:900;text-align:center;min-height:26px;margin:8px}.good{color:#309653}.bad{color:#d74750}#next{display:none;background:#69c98a;box-shadow:0 5px 0 #409d61}#next.finishBtn{background:#16a34a !important;box-shadow:0 5px 0 #15803d, 0 8px 18px rgba(22,163,74,0.35) !important;color:#fff !important;font-weight:900 !important;letter-spacing:0.5px !important}
 .scoreCircle{width:150px;height:150px;margin:10px auto 22px;border-radius:50%;background:var(--yellow);display:grid;place-items:center;font-size:42px;font-weight:900;border:9px solid #fff;box-shadow:0 8px 0 #0001}
 .stats{display:flex;gap:10px}.stat{flex:1;text-align:center;background:#f4f7f8;padding:14px;border-radius:18px;font-weight:800}
 #review{background:var(--cream)}.reviewItem{margin-bottom:14px}.reviewItem b{display:block;margin-bottom:5px}
@@ -644,6 +644,7 @@ font-size:17px !important;line-height:1.5 !important}
  <div class="barCard"><div class="barTrack"><div id="wrongBar" class="barFill wrongBar"></div><span id="wrongPct" class="barPct">0%</span></div><div class="barLabel">Salah</div><div id="wrongN" class="barNumber">0</div></div>
 </div>
 <div id="saveStatus" style="margin:10px 0 6px;font-size:13px;font-weight:700;min-height:20px;text-align:center;"></div>
+<button id="submitScoreBtn" style="display:none;background:#16a34a;color:#fff;font-weight:800;padding:12px;border-radius:12px;border:none;cursor:pointer;margin:8px 0;width:100%;box-shadow:0 4px 12px rgba(22,163,74,0.3);">✓ KLIK SELESAI UNTUK MENYIMPAN NILAI</button>
 <button id="retrySaveBtn" class="secondary" style="display:none;margin-bottom:8px;">🔄 Coba Kirim Ulang Nilai</button>
 <button id="reviewBtn">PENJELASAN SOAL</button><button class="secondary" id="again">MAIN LAGI</button></div></section>
 <section id="review" class="screen"><h2>📖 Pembahasan</h2><div id="reviewList"></div><button id="backResult">← Kembali ke Skor</button></section>
@@ -738,6 +739,7 @@ const patterns=[
 ]
 const colors=["#ff6f91","#67c8e8","#ffad5c","#9d7bea","#66c98b","#f47c73"];
 let player="",kelas="",currentGameCode="",i=0,score=0,answers=[],balloons=[],raf=0,last=0,roundStart=0,locked=false,ammo=10;
+let isScoreSubmitted=false,scoreRecordedInDatabase=false,sessionSubmissionId=null;
 let timeLeft=2400,timerInt=null,practiceRaf=0,practiceSession=1,practiceAmmo=10,practiceX=-55,practiceDir=1,practiceLocked=false;
 const $=s=>document.querySelector(s), arena=$("#arena");
 function playSfx(id,volume=1){
@@ -826,10 +828,47 @@ $("#learningBtn").onclick=()=>openInfo("Tujuan Pembelajaran",learningHTML);
 $("#instructionBtn").onclick=()=>openInfo("Petunjuk Permainan",instructionHTML);
 $("#infoBack").onclick=()=>$("#infoModal").classList.remove("show");
 
-$("#start").onclick=()=>{i=0;score=0;answers=[];ammo=10;show("game");$("#userTop").textContent=player;startTimer();startRound()}
+$("#start").onclick=()=>{
+  i=0;
+  score=0;
+  answers=[];
+  ammo=10;
+  isScoreSubmitted=false;
+  scoreRecordedInDatabase=false;
+  sessionSubmissionId=null;
+  const nb=$("#next");
+  if(nb){
+    nb.disabled=false;
+    nb.textContent="Lanjut";
+    nb.classList.remove("finishBtn");
+    nb.style.opacity="1";
+    nb.style.cursor="pointer";
+  }
+  const ss=$("#submitScoreBtn");
+  if(ss) ss.style.display="none";
+  show("game");
+  $("#userTop").textContent=player;
+  startTimer();
+  startRound();
+};
 function updateTop(){$("#progress").textContent=`Ronde ${i+1}/10`;$("#scoreTop").textContent=`Skor ${score}`;$("#ammoNum").textContent=ammo}
 function renderTimer(){let m=Math.floor(timeLeft/60),sec=timeLeft%60;$("#timerTop").textContent=String(m).padStart(2,"0")+":"+String(sec).padStart(2,"0")}
-function startTimer(){clearInterval(timerInt);timeLeft=2400;renderTimer();timerInt=setInterval(()=>{timeLeft--;renderTimer();if(timeLeft<=0){clearInterval(timerInt);cancelAnimationFrame(raf);alert("Waktu 40 menit telah habis.");finish()}},1000)}
+function startTimer(){
+  clearInterval(timerInt);
+  timeLeft=2400;
+  renderTimer();
+  timerInt=setInterval(()=>{
+    timeLeft--;
+    renderTimer();
+    if(timeLeft<=0){
+      clearInterval(timerInt);
+      cancelAnimationFrame(raf);
+      alert("Waktu 40 menit telah habis.");
+      $("#modal").classList.remove("show");
+      finish();
+    }
+  },1000);
+}
 function startRound(){cancelAnimationFrame(raf);document.querySelectorAll("#arena .balloon,#arena .spark").forEach(e=>e.remove());balloons=[];locked=false;ammo=10;updateTop();$("#hint").textContent=`Pecahkan ${patterns[i].length} balon • semua lintasan akan melewati scope!`;let W=arena.clientWidth,H=arena.clientHeight;patterns[i].forEach((p,n)=>{let el=document.createElement("div");el.className="balloon";el.style.background=colors[(i+n)%colors.length];el.style.color=colors[(i+n)%colors.length];el.innerHTML='<span class="string"></span>';arena.appendChild(el);balloons.push({el,p,n,dead:false});});roundStart=performance.now();last=roundStart;raf=requestAnimationFrame(loop)}
 function pos(b,t,W,H){let p=b.p,s=p.speed,delay=p.delay||0,u=Math.max(0,(t-delay)/1000)*s,cx=W*.50,cy=H*.47;
  if(p.type==="lr")return{x:(u*95)%(W+110)-55,y:H*p.y};
@@ -848,7 +887,33 @@ $("#shoot").onclick=()=>{if(locked)return;playSfx("sfxArrow",.9);if(ammo<=0){$("
  let hit=alive.map(b=>{let r=b.el.getBoundingClientRect();return {b,x:r.left+r.width/2-ar.left,y:r.top+r.height/2-ar.top}})
    .sort((a,b)=>Math.hypot(a.x-cx,a.y-cy)-Math.hypot(b.x-cx,b.y-cy))[0];
  if(hit && Math.hypot(hit.x-cx,hit.y-cy)<55){burst(hit.b);let left=balloons.filter(b=>!b.dead).length;if(left){$("#hint").textContent=`🎯 POP! Sisa ${left} balon lagi.`}else{locked=true;$("#hint").textContent="🎉 Semua balon pecah!";setTimeout(openQ,520)}}else{$("#hint").textContent="💨 Meleset! Bidik lagi.";setTimeout(()=>{if(!locked)$("#hint").textContent=`Sisa ${balloons.filter(b=>!b.dead).length} balon.`},650)}}
-function openQ(){cancelAnimationFrame(raf);let q=Q[i];$("#qnum").textContent=`Soal ${i+1} dari 10`;$("#qtext").innerHTML=q[0];$("#opts").innerHTML="";$("#feedback").textContent="";$("#feedback").className="feedback";$("#next").style.display="none";q[1].forEach((t,k)=>{let b=document.createElement("button");b.className="option";b.innerHTML="<b>"+("abcde"[k])+".</b> "+t;b.onclick=()=>answer(k,b);$("#opts").appendChild(b)});$("#modal").classList.add("show");fitQuestion()} 
+function openQ(){
+  cancelAnimationFrame(raf);
+  let q=Q[i];
+  $("#qnum").textContent=`Soal ${i+1} dari 10`;
+  $("#qtext").innerHTML=q[0];
+  $("#opts").innerHTML="";
+  $("#feedback").textContent="";
+  $("#feedback").className="feedback";
+  const nb=$("#next");
+  nb.style.display="none";
+  if(i===9){
+    nb.textContent="✓ SELESAI";
+    nb.classList.add("finishBtn");
+  }else{
+    nb.textContent="Lanjut";
+    nb.classList.remove("finishBtn");
+  }
+  q[1].forEach((t,k)=>{
+    let b=document.createElement("button");
+    b.className="option";
+    b.innerHTML="<b>"+("abcde"[k])+".</b> "+t;
+    b.onclick=()=>answer(k,b);
+    $("#opts").appendChild(b);
+  });
+  $("#modal").classList.add("show");
+  fitQuestion();
+} 
 function fitQuestion(){
  const box=document.querySelector("#modal .question");
  box.classList.remove("compact","ultraCompact");
@@ -862,17 +927,106 @@ function fitQuestion(){
    }
  });
 }
-function answer(k,b){if(answers[i]!=null)return;let c=Q[i][2];answers[i]=k;document.querySelectorAll(".option").forEach(o=>o.disabled=true);if(k===c){playSfx("sfxCorrect",.95);b.classList.add("correct");score+=10;$("#feedback").textContent="Benar";$("#feedback").className="feedback good"}else{playSfx("sfxWrong",.95);b.classList.add("wrong");document.querySelectorAll(".option")[c].classList.add("correct");$("#feedback").textContent="Belum tepat";$("#feedback").className="feedback bad"}updateTop();$("#next").style.display="block";fitQuestion()}
-$("#next").onclick=()=>{$("#modal").classList.remove("show");i++;if(i>=10)finish();else startRound()}
-function finish(){cancelAnimationFrame(raf);clearInterval(timerInt);show("result");playSfx("sfxResult",.95);$("#resultName").textContent=`${player} • ${kelas}`;$("#finalScore").textContent=score;
- let c=answers.filter((a,j)=>a===Q[j][2]).length,w=10-c,cp=c*10,wp=w*10;
- $("#correctN").textContent=c;$("#wrongN").textContent=w;$("#correctPct").textContent=cp+"%";$("#wrongPct").textContent=wp+"%";
- let medal=$("#medal"),label=$("#medalLabel");medal.className="medal";
- if(score>=90){medal.classList.add("gold");label.textContent="MEDALI EMAS"}
- else if(score>=75){medal.classList.add("silver");label.textContent="MEDALI PERAK"}
- else{medal.classList.add("bronze");label.textContent="MEDALI PERUNGGU"}
- requestAnimationFrame(()=>setTimeout(()=>{$("#correctBar").style.height=cp+"%";$("#wrongBar").style.height=wp+"%"},80));
- saveScoreToSupabase(score, c, w, label.textContent);
+function answer(k,b){
+  if(answers[i]!=null)return;
+  let c=Q[i][2];
+  answers[i]=k;
+  document.querySelectorAll(".option").forEach(o=>o.disabled=true);
+  if(k===c){
+    playSfx("sfxCorrect",.95);
+    b.classList.add("correct");
+    score+=10;
+    $("#feedback").textContent="Benar";
+    $("#feedback").className="feedback good";
+  }else{
+    playSfx("sfxWrong",.95);
+    b.classList.add("wrong");
+    document.querySelectorAll(".option")[c].classList.add("correct");
+    $("#feedback").textContent="Belum tepat";
+    $("#feedback").className="feedback bad";
+  }
+  updateTop();
+  const nb=$("#next");
+  if(i===9){
+    nb.textContent="✓ SELESAI";
+    nb.classList.add("finishBtn");
+  }else{
+    nb.textContent="Lanjut";
+    nb.classList.remove("finishBtn");
+  }
+  nb.disabled=false;
+  nb.style.opacity="1";
+  nb.style.cursor="pointer";
+  nb.style.display="block";
+  fitQuestion();
+}
+$("#next").onclick=()=>{
+  if(i>=9){
+    const totalAnswered=answers.filter(a=>a!=null).length;
+    if(totalAnswered<10){
+      alert("Anda harus mengisi seluruh 10 soal terlebih dahulu sebelum klik Selesai.");
+      return;
+    }
+    if(isScoreSubmitted)return;
+    isScoreSubmitted=true;
+    const nb=$("#next");
+    nb.disabled=true;
+    nb.textContent="Menyimpan...";
+    nb.style.opacity="0.7";
+    nb.style.cursor="not-allowed";
+    $("#modal").classList.remove("show");
+    i=10;
+    finish();
+  }else{
+    $("#modal").classList.remove("show");
+    i++;
+    startRound();
+  }
+};
+function finish(){
+  cancelAnimationFrame(raf);
+  clearInterval(timerInt);
+  show("result");
+  playSfx("sfxResult",.95);
+  $("#resultName").textContent=`${player} • ${kelas}`;
+  $("#finalScore").textContent=score;
+  let c=answers.filter((a,j)=>a===Q[j][2]).length,w=10-c,cp=c*10,wp=w*10;
+  $("#correctN").textContent=c;$("#wrongN").textContent=w;$("#correctPct").textContent=cp+"%";$("#wrongPct").textContent=wp+"%";
+  let medal=$("#medal"),label=$("#medalLabel");medal.className="medal";
+  if(score>=90){medal.classList.add("gold");label.textContent="MEDALI EMAS"}
+  else if(score>=75){medal.classList.add("silver");label.textContent="MEDALI PERAK"}
+  else{medal.classList.add("bronze");label.textContent="MEDALI PERUNGGU"}
+  requestAnimationFrame(()=>setTimeout(()=>{$("#correctBar").style.height=cp+"%";$("#wrongBar").style.height=wp+"%"},80));
+
+  const totalAnswered=answers.filter(a=>a!=null).length;
+  const statusEl=document.getElementById("saveStatus");
+  const submitBtn=document.getElementById("submitScoreBtn");
+  const retryBtn=document.getElementById("retrySaveBtn");
+
+  // ATURAN SISTEM: Nilai terdata HANYA jika sudah mengisi semua jawaban (10 soal) dan klik selesai.
+  // Data yang tersimpan HANYA berlaku untuk satu kali mengklik selesai.
+  if(totalAnswered===10 && isScoreSubmitted){
+    if(submitBtn)submitBtn.style.display="none";
+    if(!scoreRecordedInDatabase){
+      scoreRecordedInDatabase=true;
+      saveScoreToSupabase(score, c, w, label.textContent);
+    }
+  }else if(totalAnswered===10 && !isScoreSubmitted){
+    if(statusEl)statusEl.innerHTML='<span style="color:#2563eb">ℹ️ Seluruh 10 soal telah dijawab. Klik tombol di bawah untuk menyelesaikan & menyimpan nilai:</span>';
+    if(submitBtn){
+      submitBtn.style.display="block";
+      submitBtn.disabled=false;
+      submitBtn.textContent="✓ SELESAI & SIMPAN NILAI";
+      submitBtn.style.opacity="1";
+    }
+    if(retryBtn)retryBtn.style.display="none";
+  }else{
+    if(submitBtn)submitBtn.style.display="none";
+    if(retryBtn)retryBtn.style.display="none";
+    if(statusEl){
+      statusEl.innerHTML=`<span style="color:#dc2626">⚠️ Nilai tidak terdata: Anda baru menjawab ${totalAnswered} dari 10 soal.<br><span style="font-size:12px;color:#64748b;font-weight:normal;">Data nilai hanya akan disimpan jika seluruh 10 jawaban telah diisi dan mengklik Selesai.</span></span>`;
+    }
+  }
 }
 
 let pendingScorePayload = null;
@@ -881,7 +1035,7 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
   const retryBtn = document.getElementById("retrySaveBtn");
   if (!statusEl) return;
 
-  statusEl.innerHTML = '<span style="color:#2563eb">⏳ Menyimpan nilai ke database Guru...</span>';
+  statusEl.innerHTML = '<span style="color:#2563eb">⏳ Menyimpan nilai ke database Guru (1x Selesai)...</span>';
   if (retryBtn) retryBtn.style.display = "none";
 
   const durationSeconds = Math.max(0, 2400 - timeLeft);
@@ -893,9 +1047,13 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
   }));
 
   const codeToSave = (currentGameCode || "21").trim();
-  detail.push({ is_meta: true, game_code: codeToSave });
+  if (!sessionSubmissionId) {
+    sessionSubmissionId = "sub_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8);
+  }
+  detail.push({ is_meta: true, game_code: codeToSave, session_id: sessionSubmissionId });
 
   pendingScorePayload = {
+    submission_id: sessionSubmissionId,
     student_name: player || "Tanpa Nama",
     student_class: kelas || "-",
     game_code: codeToSave,
@@ -908,10 +1066,15 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
     created_at: new Date().toISOString()
   };
 
-  // Selalu simpan ke riwayat lokal di browser (offline safe)
+  // Simpan ke riwayat lokal di browser (offline safe), berlaku hanya untuk satu kali (hindari data ganda)
   try {
     const localScores = JSON.parse(localStorage.getItem("inverse_archer_all_scores") || "[]");
-    localScores.push(pendingScorePayload);
+    const existingIndex = localScores.findIndex(item => item.submission_id && item.submission_id === pendingScorePayload.submission_id);
+    if (existingIndex >= 0) {
+      localScores[existingIndex] = pendingScorePayload;
+    } else {
+      localScores.push(pendingScorePayload);
+    }
     localStorage.setItem("inverse_archer_all_scores", JSON.stringify(localScores));
   } catch(e) {
     console.warn("Gagal simpan lokal riwayat:", e);
@@ -920,33 +1083,59 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
   if (typeof initSupabase === "function") initSupabase();
 
   if (!supabaseClient) {
-    statusEl.innerHTML = '<span style="color:#16a34a">✓ Nilai berhasil disimpan (Mode Offline). Siap diekspor oleh Guru.</span>';
+    statusEl.innerHTML = '<span style="color:#16a34a">✓ Nilai berhasil disimpan (Mode Offline - 1x Selesai). Siap diekspor oleh Guru.</span>';
     return;
   }
+
+  const supabasePayload = { ...pendingScorePayload };
+  delete supabasePayload.submission_id;
 
   try {
     let { error } = await supabaseClient
       .from("student_scores")
-      .insert([pendingScorePayload]);
+      .insert([supabasePayload]);
 
     if (error && error.message && error.message.includes("game_code")) {
-      const fallbackPayload = { ...pendingScorePayload };
+      const fallbackPayload = { ...supabasePayload };
       delete fallbackPayload.game_code;
       const res = await supabaseClient.from("student_scores").insert([fallbackPayload]);
       error = res.error;
     }
 
     if (error) throw error;
-    statusEl.innerHTML = '<span style="color:#16a34a">✓ Nilai berhasil dikirim & tersimpan di database Guru</span>';
+    statusEl.innerHTML = '<span style="color:#16a34a">✓ Nilai berhasil dikirim & tersimpan di database Guru (1x Selesai)</span>';
     try { localStorage.removeItem("inverse_archer_pending_score"); } catch(e){}
   } catch (err) {
     console.error("Gagal simpan nilai ke Supabase:", err);
     try {
       localStorage.setItem("inverse_archer_pending_score", JSON.stringify(pendingScorePayload));
     } catch(e){}
-    statusEl.innerHTML = '<span style="color:#d97706">⚠️ Tersimpan di perangkat lokal (koneksi server offline).</span>';
+    statusEl.innerHTML = '<span style="color:#d97706">⚠️ Tersimpan di perangkat lokal (koneksi server offline - 1x Selesai).</span>';
     if (retryBtn) retryBtn.style.display = "block";
   }
+}
+
+const submitScoreBtnEl = document.getElementById("submitScoreBtn");
+if (submitScoreBtnEl) {
+  submitScoreBtnEl.onclick = () => {
+    const totalAnswered = answers.filter(a => a != null).length;
+    if (totalAnswered < 10) {
+      alert("Anda belum mengisi semua jawaban (10 soal). Nilai tidak dapat disimpan.");
+      return;
+    }
+    if (isScoreSubmitted) return;
+    isScoreSubmitted = true;
+    submitScoreBtnEl.disabled = true;
+    submitScoreBtnEl.textContent = "Menyimpan Nilai...";
+    submitScoreBtnEl.style.opacity = "0.6";
+
+    if (!scoreRecordedInDatabase) {
+      scoreRecordedInDatabase = true;
+      let c = answers.filter((a,j)=>a===Q[j][2]).length, w = 10 - c;
+      let label = $("#medalLabel") ? $("#medalLabel").textContent : "-";
+      saveScoreToSupabase(score, c, w, label);
+    }
+  };
 }
 
 const retryBtnEl = document.getElementById("retrySaveBtn");
@@ -1554,5 +1743,19 @@ ${ok
  : `<div class="reviewAnswer wrong"><span class="answerSymbol">×</span><div>${"ABCDE"[answers[j]]}. ${q[1][answers[j]]}</div></div>
     <div class="reviewAnswer correct"><span class="answerSymbol">✓</span><div>${"ABCDE"[q[2]]}. ${q[1][q[2]]}</div></div>`}
 <div class="tiny" style="margin-top:8px;line-height:1.65">${q[3]}</div>`;L.appendChild(d)});show("review")}
-$("#backResult").onclick=()=>show("result");$("#again").onclick=()=>{$("#correctBar").style.height="0";$("#wrongBar").style.height="0";show("menu")};
+$("#backResult").onclick=()=>show("result");
+$("#again").onclick=()=>{
+  $("#correctBar").style.height="0";
+  $("#wrongBar").style.height="0";
+  isScoreSubmitted=false;
+  scoreRecordedInDatabase=false;
+  sessionSubmissionId=null;
+  const statusEl=document.getElementById("saveStatus");
+  if(statusEl) statusEl.innerHTML="";
+  const submitBtn=document.getElementById("submitScoreBtn");
+  if(submitBtn) submitBtn.style.display="none";
+  const retryBtn=document.getElementById("retrySaveBtn");
+  if(retryBtn) retryBtn.style.display="none";
+  show("menu");
+};
 </script></body></html>
