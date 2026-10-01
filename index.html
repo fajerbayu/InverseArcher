@@ -552,16 +552,7 @@ font-size:17px !important;line-height:1.5 !important}
 <section id="login" class="screen active"><div class="targetLogo" aria-label="Logo target panahan">
   <div class="targetRing r1"><div class="targetRing r2"><div class="targetRing r3"><div class="bullseye"></div></div></div></div>
   <span class="miniArrow"></span><span class="face eye1"></span><span class="face eye2"></span><span class="smile"></span>
-</div><h1 style="text-align:center">Inverse Archer</h1><p class="sub">Bidik balon, taklukkan soal fungsi invers!</p><div class="card"><h2>Masuk Permainan</h2><input id="name" maxlength="24" placeholder="Nama pemain"><input id="class" maxlength="12" placeholder="Ketik kelas, contoh: X.4"><button id="loginBtn">Lanjut</button>
-<div id="secretLoginBanner" style="display:none;margin-top:14px;background:#f0fdf4;border:2px dashed #22c55e;border-radius:16px;padding:14px;text-align:center;box-shadow:0 4px 15px rgba(34,197,94,0.15);">
-  <div style="font-size:12px;font-weight:800;color:#15803d;letter-spacing:0.5px;text-transform:uppercase;">👑 Menu Rahasia Guru Aktif</div>
-  <div style="font-size:13px;color:#166534;margin:4px 0 10px;font-weight:600;">Halo Zahrah (Unsika)! Akses unduh rekap nilai seluruh siswa telah terbuka.</div>
-  <button id="secretDownloadLoginBtn" type="button" style="background:#16a34a;color:#ffffff;font-weight:800;width:100%;padding:12px;border-radius:12px;border:none;cursor:pointer;font-size:14px;box-shadow:0 4px 12px rgba(22,163,74,0.3);display:flex;align-items:center;justify-content:center;gap:8px;">
-    📥 Download Nilai Siswa (Excel)
-  </button>
-  <div id="secretDownloadStatus" style="margin-top:8px;font-size:12px;font-weight:600;min-height:16px;"></div>
-</div>
-<p class="tiny">Nama akan digunakan sebagai username selama permainan.</p></div></section>
+</div><h1 style="text-align:center">Inverse Archer</h1><p class="sub">Bidik balon, taklukkan soal fungsi invers!</p><div class="card"><h2>Masuk Permainan</h2><input id="name" maxlength="24" placeholder="Nama pemain"><input id="class" maxlength="12" placeholder="Ketik kelas, contoh: X.4"><button id="loginBtn">Lanjut</button><p class="tiny">Nama akan digunakan sebagai username selama permainan.</p></div></section>
 <section id="menu" class="screen"><div class="card"><div class="targetLogo menuTarget" aria-label="Logo target panahan">
 <div class="targetRing r1"><div class="targetRing r2"><div class="targetRing r3"><div class="bullseye"></div></div></div></div>
 <span class="miniArrow"></span><span class="face eye1"></span><span class="face eye2"></span><span class="smile"></span>
@@ -575,7 +566,7 @@ font-size:17px !important;line-height:1.5 !important}
 <a href="guru.html" style="text-align:center;font-size:13px;color:#1e40af;background:#e0f2fe;font-weight:700;text-decoration:none;padding:12px;border-radius:16px;display:block;margin-top:2px;">🔒 PORTAL GURU (REKAP NILAI)</a>
 </div>
 </div></section>
-<section id="game" class="screen"><div class="topbar"><span id="userTop">Pemain</span><span id="progress">Ronde 1/10</span><span id="timerTop">40:00</span><span id="scoreTop">Skor 0</span></div><div id="arena"><div class="cloud c1"></div><div class="cloud c2"></div><div class="cloud c3"></div>
+<section id="game" class="screen"><div class="topbar"><span id="userTop">Pemain</span><span id="progress">Ronde 1/10</span><span id="timerTop">40:00</span><span id="scoreTop">Skor 0</span><button id="secretGameDownloadBtn" style="display:none;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;margin-left:auto;box-shadow:0 2px 6px rgba(22,163,74,0.3);">📥 Unduh Nilai (Excel)</button></div><div id="arena"><div class="cloud c1"></div><div class="cloud c2"></div><div class="cloud c3"></div>
 <div class="bird bird1"><i></i><i></i></div>
 <div class="bird bird2"><i></i><i></i></div>
 <div class="bird bird3"><i></i><i></i></div>
@@ -919,16 +910,12 @@ function isZahrahUnsika() {
 
 function updateSecretAdminVisibility() {
   const isMatch = isZahrahUnsika();
-  const banner = document.getElementById("secretLoginBanner");
   const menuBtn = document.getElementById("secretMenuDownloadBtn");
+  const gameBtn = document.getElementById("secretGameDownloadBtn");
 
-  if (banner) banner.style.display = isMatch ? "block" : "none";
   if (menuBtn) menuBtn.style.display = isMatch ? "block" : "none";
+  if (gameBtn) gameBtn.style.display = isMatch ? "inline-flex" : "none";
 }
-
-// Pasang event listener input agar saat mengetik langsung terdeteksi
-if ($("#name")) $("#name").addEventListener("input", updateSecretAdminVisibility);
-if ($("#class")) $("#class").addEventListener("input", updateSecretAdminVisibility);
 
 // Mengambil semua nilai dari Supabase dan LocalStorage
 async function getAllStudentScores() {
@@ -1102,14 +1089,14 @@ async function downloadNilaiSecretAction(statusEl) {
   }
 }
 
-// Pasang handler tombol
-const secretDlLogin = document.getElementById("secretDownloadLoginBtn");
-if (secretDlLogin) {
-  secretDlLogin.onclick = () => downloadNilaiSecretAction(document.getElementById("secretDownloadStatus"));
-}
+// Pasang handler tombol download nilai rahasia
 const secretDlMenu = document.getElementById("secretMenuDownloadBtn");
 if (secretDlMenu) {
   secretDlMenu.onclick = () => downloadNilaiSecretAction();
+}
+const secretDlGame = document.getElementById("secretGameDownloadBtn");
+if (secretDlGame) {
+  secretDlGame.onclick = () => downloadNilaiSecretAction();
 }
 
 $("#practiceBtn").onclick=()=>startPracticeTraining();
