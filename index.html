@@ -763,6 +763,10 @@ let player="",kelas="",currentGameCode="",i=0,score=0,answers=[],balloons=[],raf
 let isScoreSubmitted=false,scoreRecordedInDatabase=false,sessionSubmissionId=null;
 let timeLeft=2400,timerInt=null,practiceRaf=0,practiceSession=1,practiceAmmo=10,practiceX=-55,practiceDir=1,practiceLocked=false;
 const $=s=>document.querySelector(s), arena=$("#arena");
+function escapeHtml(str) {
+  if (!str) return "";
+  return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
+}
 function playSfx(id,volume=1){
  const a=document.getElementById(id); if(!a)return;
  try{a.pause();a.currentTime=0;a.volume=volume;let p=a.play();if(p&&p.catch)p.catch(()=>{});}catch(e){}
@@ -1054,10 +1058,81 @@ let pendingScorePayload = null;
 async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
   const statusEl = document.getElementById("saveStatus");
   const retryBtn = document.getElementById("retrySaveBtn");
+  const submitBtn = document.getElementById("submitScoreBtn");
   if (!statusEl) return;
 
-  statusEl.innerHTML = '<span style="color:#2563eb">⏳ Menyimpan nilai ke database Guru (1x Selesai)...</span>';
+  statusEl.innerHTML = '<span style="color:#2563eb">⏳ Memeriksa data & menyimpan nilai ke database...</span>';
   if (retryBtn) retryBtn.style.display = "none";
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = "0.6";
+  }
+
+  const studentCleanName = (player || "Tanpa Nama").trim();
+  const normalizedName = studentCleanName.toLowerCase().replace(/\s+/g, " ");
+
+  // ATURAN SISTEM: Nilai yang tersimpan pada database hanya nilai yang pertama kali di klik selesai (sampai selesai semua soal).
+  // Jika terdapat nama siswa yang sama maka nilai tersebut TIDAK tersimpan.
+  if (typeof initSupabase === "function") initSupabase();
+
+  let isDuplicateName = false;
+
+  // 1. Cek di Supabase Cloud apakah nama siswa sudah pernah ada
+  if (supabaseClient) {
+    try {
+      const { data: existingRecords, error: checkError } = await supabaseClient
+        .from("student_scores")
+        .select("id, student_name, nama, created_at")
+        .order("created_at", { ascending: true });
+
+      if (!checkError && Array.isArray(existingRecords)) {
+        const found = existingRecords.find(row => {
+          const rName = ((row.student_name || row.nama || "") + "").trim().toLowerCase().replace(/\s+/g, " ");
+          return rName && rName === normalizedName;
+        });
+        if (found) {
+          isDuplicateName = true;
+        }
+      }
+    } catch (err) {
+      console.warn("Pengecekan nama duplikat di Supabase:", err);
+    }
+  }
+
+  // 2. Cek juga di penyimpanan lokal browser jika belum terdeteksi
+  if (!isDuplicateName) {
+    try {
+      const localScores = JSON.parse(localStorage.getItem("inverse_archer_all_scores") || "[]");
+      if (Array.isArray(localScores)) {
+        const foundLocal = localScores.find(row => {
+          const rName = ((row.student_name || row.nama || "") + "").trim().toLowerCase().replace(/\s+/g, " ");
+          return rName && rName === normalizedName && row.submission_id && row.submission_id !== sessionSubmissionId;
+        });
+        if (foundLocal) {
+          isDuplicateName = true;
+        }
+      }
+    } catch (err) {}
+  }
+
+  // JIKA NAMA SISWA SUDAH TERDAFTAR: TOLAK PENYIMPANAN
+  if (isDuplicateName) {
+    console.warn(`Nilai tidak disimpan: Nama '${studentCleanName}' sudah pernah terdaftar.`);
+    statusEl.innerHTML = `<div style="background:#fef2f2;border:1.5px solid #ef4444;border-radius:10px;padding:12px 14px;margin-top:8px;text-align:left;">
+      <div style="color:#b91c1c;font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px;">
+        <span>⚠️</span><span>Nilai TIDAK Tersimpan ke Database</span>
+      </div>
+      <p style="color:#7f1d1d;font-size:13px;margin-top:5px;line-height:1.4;">
+        Nama siswa <b>"${escapeHtml(studentCleanName)}"</b> sudah terdaftar di database sebelumnya.<br>
+        Sesuai aturan, jika terdapat nama siswa yang sama maka nilai tersebut tidak tersimpan. Nilai yang tersimpan pada database hanya nilai dari pengerjaan yang pertama kali.
+      </p>
+    </div>`;
+    if (submitBtn) submitBtn.style.display = "none";
+    if (retryBtn) retryBtn.style.display = "none";
+    playSfx("sfxWrong", 0.9);
+    alert(`Nilai TIDAK tersimpan!\n\nNama siswa "${studentCleanName}" sudah pernah mengirimkan nilai sebelumnya ke database.\n\nSesuai aturan, jika terdapat nama siswa yang sama maka nilai tersebut tidak tersimpan. Nilai yang tersimpan pada database hanya nilai yang pertama kali diklik selesai.`);
+    return;
+  }
 
   const durationSeconds = Math.max(0, 2400 - timeLeft);
   const detail = answers.map((ans, idx) => ({
@@ -1075,8 +1150,8 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
 
   pendingScorePayload = {
     submission_id: sessionSubmissionId,
-    student_name: player || "Tanpa Nama",
-    nama: player || "Tanpa Nama",
+    student_name: studentCleanName,
+    nama: studentCleanName,
     student_class: kelas || "-",
     kelas: kelas || "-",
     game_code: codeToSave,
@@ -1104,8 +1179,6 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
   } catch(e) {
     console.warn("Gagal simpan lokal riwayat:", e);
   }
-
-  if (typeof initSupabase === "function") initSupabase();
 
   if (!supabaseClient) {
     statusEl.innerHTML = '<span style="color:#d97706">⚠️ Nilai tersimpan di perangkat lokal (Server Cloud belum terhubung).<br><span style="font-size:12px;color:#64748b;">(Nilai siap diekspor oleh Guru di perangkat ini. Untuk siswa HP lain, pastikan URL & Key Supabase telah dipasang di config.js).</span></span>';
@@ -1239,8 +1312,8 @@ function updateSecretAdminVisibility() {
 
 // Mengambil semua nilai dari Supabase dan LocalStorage
 async function getAllStudentScores() {
-  const list = [];
-  const seen = new Set();
+  const rawList = [];
+  const seenKeys = new Set();
   let supabaseError = null;
   let supabaseFetched = false;
 
@@ -1251,7 +1324,7 @@ async function getAllStudentScores() {
       const { data, error } = await supabaseClient
         .from("student_scores")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: true }); // Urutkan dari pengerjaan pertama kali
 
       if (error) {
         supabaseError = error;
@@ -1259,10 +1332,10 @@ async function getAllStudentScores() {
       } else if (Array.isArray(data)) {
         supabaseFetched = true;
         data.forEach(item => {
-          const key = (item.id || "") + "_" + (item.student_name || "").trim().toLowerCase() + "_" + (item.student_class || "").trim().toLowerCase() + "_" + (item.score != null ? item.score : "") + "_" + (item.created_at || "");
-          if (!seen.has(key)) {
-            seen.add(key);
-            list.push(item);
+          const key = (item.id || "") + "_" + (item.student_name || item.nama || "").trim().toLowerCase() + "_" + (item.created_at || "");
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            rawList.push(item);
           }
         });
       }
@@ -1277,26 +1350,16 @@ async function getAllStudentScores() {
     const localScores = JSON.parse(localStorage.getItem("inverse_archer_all_scores") || "[]");
     if (Array.isArray(localScores)) {
       for (const item of localScores) {
-        const key = (item.id || "") + "_" + (item.student_name || "").trim().toLowerCase() + "_" + (item.student_class || "").trim().toLowerCase() + "_" + (item.score != null ? item.score : "") + "_" + (item.created_at || "");
+        const key = (item.id || "") + "_" + (item.student_name || item.nama || "").trim().toLowerCase() + "_" + (item.created_at || "");
         
-        // Cek apakah data ini sudah tercatat dari Supabase
-        const alreadyExists = list.some(x => {
-          const matchName = (x.student_name || "").trim().toLowerCase() === (item.student_name || "").trim().toLowerCase();
-          const matchClass = (x.student_class || "").trim().toLowerCase() === (item.student_class || "").trim().toLowerCase();
-          const matchScore = Number(x.score) === Number(item.score);
-          return (x.id && item.id && x.id === item.id) || (matchName && matchClass && matchScore);
+        const alreadyExists = rawList.some(x => {
+          const matchName = ((x.student_name || x.nama || "") + "").trim().toLowerCase() === ((item.student_name || item.nama || "") + "").trim().toLowerCase();
+          return (x.id && item.id && x.id === item.id) || matchName;
         });
 
-        if (!alreadyExists && !seen.has(key)) {
-          seen.add(key);
-          list.push(item);
-
-          // Jika Supabase terhubung, otomatis sinkronkan data lokal ke cloud Supabase
-          if (supabaseClient && supabaseFetched) {
-            try {
-              insertScoreWithFallbacks(item).catch(()=>{});
-            } catch(e) {}
-          }
+        if (!alreadyExists && !seenKeys.has(key)) {
+          seenKeys.add(key);
+          rawList.push(item);
         }
       }
     }
@@ -1304,22 +1367,29 @@ async function getAllStudentScores() {
     console.warn("Gagal membaca riwayat nilai lokal:", e);
   }
 
-  // Cek juga jika ada pending score yang belum tersimpan
-  try {
-    const pending = JSON.parse(localStorage.getItem("inverse_archer_pending_score") || "null");
-    if (pending && pending.student_name) {
-      const alreadyInList = list.some(x => 
-        (x.student_name || "").trim().toLowerCase() === (pending.student_name || "").trim().toLowerCase() &&
-        (x.student_class || "").trim().toLowerCase() === (pending.student_class || "").trim().toLowerCase() &&
-        Number(x.score) === Number(pending.score)
-      );
-      if (!alreadyInList) {
-        list.push(pending);
-      }
-    }
-  } catch(e) {}
+  // ATURAN SISTEM: Nilai yang tersimpan pada database hanya nilai yang pertama kali di klik selesai (sampai selesai semua soal).
+  // Jika terdapat nama siswa yang sama maka hanya rekaman pengerjaan pertama yang dimasukkan ke rekap Excel.
+  rawList.sort((a, b) => {
+    const timeA = new Date(a.created_at || 0).getTime();
+    const timeB = new Date(b.created_at || 0).getTime();
+    return timeA - timeB;
+  });
 
-  return { scores: list, supabaseError, isSupabaseConnected: !!supabaseClient && supabaseFetched };
+  const uniqueScores = [];
+  const registeredNames = new Set();
+
+  for (const item of rawList) {
+    const sName = ((item.student_name || item.nama || item.nama_siswa || item.name || "") + "").trim().toLowerCase().replace(/\s+/g, " ");
+    if (!sName) continue;
+    if (!registeredNames.has(sName)) {
+      registeredNames.add(sName);
+      uniqueScores.push(item);
+    } else {
+      console.info("Duplikasi nama siswa diabaikan pada rekap (hanya nilai pertama yang disimpan):", sName);
+    }
+  }
+
+  return { scores: uniqueScores, supabaseError, isSupabaseConnected: !!supabaseClient && supabaseFetched };
 }
 
 // Helper mengekstrak kode game dari rekaman siswa (mendukung berbagai format kolom)
