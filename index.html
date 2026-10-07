@@ -824,6 +824,10 @@ $("#loginBtn").onclick=()=>{
   }
 
   currentGameCode = codeInput || "21";
+  try {
+    sessionStorage.setItem("inverse_archer_game_code", currentGameCode);
+    localStorage.setItem("inverse_archer_last_game_code", currentGameCode);
+  } catch(e) {}
   $("#hello").textContent=player;
   if(typeof updateSecretAdminVisibility==="function")updateSecretAdminVisibility();
   show("menu");
@@ -1142,7 +1146,20 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
     is_correct: ans === Q[idx][2]
   }));
 
-  const codeToSave = (currentGameCode || "21").trim();
+  let codeToSave = (currentGameCode || "").trim();
+  if (!codeToSave) {
+    try {
+      codeToSave = (sessionStorage.getItem("inverse_archer_game_code") || localStorage.getItem("inverse_archer_last_game_code") || "").trim();
+    } catch(e) {}
+  }
+  if (!codeToSave) {
+    const codeInp = document.getElementById("gameCode");
+    if (codeInp && codeInp.value) codeToSave = codeInp.value.trim();
+  }
+  if (codeToSave === "7") codeToSave = "07";
+  if (codeToSave === "5") codeToSave = "05";
+  if (!codeToSave) codeToSave = "21";
+
   if (!sessionSubmissionId) {
     sessionSubmissionId = "sub_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8);
   }
@@ -1151,13 +1168,9 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
   pendingScorePayload = {
     submission_id: sessionSubmissionId,
     student_name: studentCleanName,
-    nama: studentCleanName,
     student_class: kelas || "-",
-    kelas: kelas || "-",
     game_code: codeToSave,
-    kode: codeToSave,
     score: finalScore,
-    nilai: finalScore,
     correct_count: correctN,
     wrong_count: wrongN,
     medal: medalName || "-",
@@ -1201,51 +1214,52 @@ async function saveScoreToSupabase(finalScore, correctN, wrongN, medalName) {
   }
 }
 
-// Helper pengiriman nilai ke Supabase dengan toleransi skema multi-tier (mendukung kolom Bahasa Inggris maupun Indonesia)
+// Helper pengiriman nilai ke Supabase dengan skema kolom yang tepat & mempertahankan game_code
 async function insertScoreWithFallbacks(payload) {
   if (!supabaseClient) return { error: new Error("Supabase belum diinisialisasi") };
 
-  const attemptPayload = { ...payload };
-  delete attemptPayload.submission_id;
+  // Normalisasi kode permainan (21, 17, 07, 20, 05)
+  let gCode = (payload.game_code || payload.kode || "").toString().trim();
+  const digits = gCode.replace(/[^0-9]/g, "");
+  if (digits === "7" || gCode === "7") gCode = "07";
+  if (digits === "5" || gCode === "5") gCode = "05";
+  if (!gCode) gCode = "21";
 
-  // Tier 1: Kirim data lengkap standar Bahasa Inggris
-  let res = await supabaseClient.from("student_scores").insert([attemptPayload]);
+  // Objek yang 100% cocok dengan kolom riil di Supabase 'student_scores'
+  const cleanPayload = {
+    student_name: payload.student_name || "Tanpa Nama",
+    student_class: payload.student_class || "-",
+    game_code: gCode,
+    score: Number(payload.score) || 0,
+    correct_count: Number(payload.correct_count) || 0,
+    wrong_count: Number(payload.wrong_count) || 0,
+    medal: payload.medal || "-",
+    time_spent_seconds: Number(payload.time_spent_seconds) || 0,
+    answers_detail: payload.answers_detail || [],
+    created_at: payload.created_at || new Date().toISOString()
+  };
+
+  // Tier 1: Kirim data lengkap standar (termasuk game_code & answers_detail)
+  let res = await supabaseClient.from("student_scores").insert([cleanPayload]);
   if (!res.error) return res;
 
-  console.warn("Insert Tier 1 (English) notice:", res.error.message);
+  console.warn("Insert Tier 1 (Clean Standard) notice:", res.error.message);
 
-  // Tier 1b: Coba skema bahasa Indonesia jika tabel Supabase dibuat dengan nama kolom lokal (nama, kelas, kode, nilai)
-  const indoPayload = {
-    nama: payload.student_name || "Tanpa Nama",
-    kelas: payload.student_class || "-",
-    kode: payload.game_code || "21",
-    nilai: Number(payload.score) || 0
-  };
-  let resIndo = await supabaseClient.from("student_scores").insert([indoPayload]);
-  if (!resIndo.error) return resIndo;
-
-  console.warn("Insert Tier 1b (Indonesian) notice:", resIndo.error.message);
-
-  // Tier 2: Hapus kolom opsional yang mungkin belum dibuat di tabel Supabase
-  const tier2Payload = { ...attemptPayload };
-  delete tier2Payload.game_code;
-  delete tier2Payload.kode;
+  // Tier 2: Jika answers_detail JSON bermasalah, kirim tanpa answers_detail TAPI TETAP PERTAHANKAN game_code!
+  const tier2Payload = { ...cleanPayload };
   delete tier2Payload.answers_detail;
-  delete tier2Payload.time_spent_seconds;
-  delete tier2Payload.medal;
-  delete tier2Payload.nama;
-  delete tier2Payload.kelas;
-  delete tier2Payload.nilai;
   res = await supabaseClient.from("student_scores").insert([tier2Payload]);
   if (!res.error) return res;
 
-  console.warn("Insert Tier 2 notice:", res.error.message);
+  console.warn("Insert Tier 2 (No Detail) notice:", res.error.message);
 
-  // Tier 3: Kolom standar paling dasar (student_name, student_class, score)
+  // Tier 3: Minimum kolom TAPI WAJIB ADA game_code!
   const tier3Payload = {
-    student_name: payload.student_name || "Tanpa Nama",
-    student_class: payload.student_class || "-",
-    score: Number(payload.score) || 0
+    student_name: cleanPayload.student_name,
+    student_class: cleanPayload.student_class,
+    game_code: cleanPayload.game_code,
+    score: cleanPayload.score,
+    created_at: cleanPayload.created_at
   };
   res = await supabaseClient.from("student_scores").insert([tier3Payload]);
   return res;
@@ -1408,8 +1422,11 @@ function extractGameCode(item) {
   }
   // Ambil hanya angka untuk normalisasi (misal "Kode 21" -> "21")
   const digits = c.replace(/[^0-9]/g, "");
-  if (digits === "7") return "07";
-  if (digits === "5") return "05";
+  if (digits === "7" || c === "7") return "07";
+  if (digits === "5" || c === "5") return "05";
+  if (digits === "17" || c === "17") return "17";
+  if (digits === "20" || c === "20") return "20";
+  if (digits === "21" || c === "21") return "21";
   if (digits) return digits;
   return c || "21";
 }
